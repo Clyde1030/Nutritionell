@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Nutritionell",
+    "slug": "nutritionell",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nutritionell.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nutritionell needs camera access to scan grocery shelves.",
+        "NSPhotoLibraryUsageDescription": "Nutritionell needs photo library access to analyze saved images."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#09090f"
+      },
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Nutritionell needs camera access to scan grocery shelves."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nutritionell needs access to your photos.",
+          "cameraPermission": "Nutritionell needs camera access to scan grocery shelves."
+        }
+      ]
+    ],
+    "scheme": "nutritionell",
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

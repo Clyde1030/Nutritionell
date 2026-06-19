@@ -1,0 +1,78 @@
+.page { padding: 32px 0; }
+.container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+.header { margin-bottom: 32px; }
+.title { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+.sub { color: var(--sub); font-size: 13px; margin-top: 4px; }
+
+.section { margin-bottom: 32px; }
+.label { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.hint { font-size: 11px; color: var(--sub); font-weight: 400; }
+.input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 15px;
+  padding: 10px 14px; outline: none;
+}
+.input:focus { border-color: var(--accent); }
+
+/* Pills */
+.pillRow { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.pill { border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--sub); background: var(--surface); transition: all 0.12s; }
+.pill:hover { border-color: var(--sub); color: var(--text); }
+.pillActive { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Info card */
+.infoCard { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.infoCardAccent { border-color: var(--accent); }
+.infoCardTitle { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.infoCardBody { font-size: 13px; color: var(--sub); line-height: 1.5; }
+.accentText { color: var(--accent); }
+.actionRow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.actionBtn { border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; color: var(--sub); background: transparent; }
+.actionBtn:hover { border-color: var(--sub); color: var(--text); }
+.actionBtnAccent { border-color: var(--accent); color: var(--accent); }
+
+/* List group */
+.listGroup { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.listRow { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
+.listRow:last-child { border-bottom: none; }
+.listCheck { flex: 1; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: transparent; text-align: left; }
+.listCheck:hover { background: var(--surface); }
+.listCheckOn { background: rgba(124,106,255,0.08); }
+.listCheckRed { background: rgba(255,92,122,0.08); }
+.checkbox { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0; }
+.checkboxOn { background: var(--accent); border-color: var(--accent); }
+.checkboxRed { background: var(--red); border-color: var(--red); }
+.listLabel { font-size: 14px; color: var(--sub); }
+.listCheckOn .listLabel, .listCheckRed .listLabel { color: var(--text); }
+.infoBtn { padding: 12px 14px; color: var(--sub); font-size: 14px; background: transparent; }
+.infoBtn:hover { color: var(--text); }
+
+/* Segment */
+.toleranceLabel { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+.segmentRow { display: flex; gap: 6px; }
+.segment { flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--sub); font-size: 16px; font-weight: 700; }
+.segment:hover { border-color: var(--sub); }
+.segmentOn { background: var(--accent); border-color: var(--accent); color: #fff; }
+.segmentLabels { display: flex; justify-content: space-between; font-size: 10px; color: var(--sub); margin-top: 4px; }
+
+/* Save */
+.saveBtn { width: 100%; margin-top: 8px; background: var(--accent); color: #fff; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 700; border: none; }
+.saveBtn:hover { opacity: 0.9; }
+.saveBtnSaved { background: var(--green); }
+.cancelBtn { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; font-size: 14px; color: var(--sub); }
+
+/* Modal */
+.modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: flex-end; justify-content: center; z-index: 1000; padding: 0; }
+.modal { background: var(--card); border-radius: 20px 20px 0 0; padding: 24px; width: 100%; max-width: 720px; max-height: 80vh; overflow-y: auto; }
+.modalTitle { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.modalClose { width: 100%; margin-top: 16px; background: var(--surface); border: none; border-radius: 12px; padding: 12px; font-size: 14px; color: var(--sub); }
+.sheetBody { font-size: 14px; color: var(--sub); line-height: 1.6; }
+.sheetSub { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-top: 14px; margin-bottom: 6px; }
+.bullet { font-size: 13px; color: var(--sub); line-height: 1.8; padding-left: 4px; }
+.textarea { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; padding: 10px 12px; resize: vertical; outline: none; margin-top: 6px; }
+.textarea:focus { border-color: var(--accent); }
+
+@media (min-width: 600px) {
+  .modalOverlay { align-items: center; }
+  .modal { border-radius: 20px; }
+}
