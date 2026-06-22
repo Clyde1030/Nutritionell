@@ -256,3 +256,10 @@ Application/web/npm-debug.log*
 Application/web/yarn-debug.log*
 Application/web/yarn-error.log*
 Application/web/pnpm-debug.log*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
