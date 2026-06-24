@@ -159,9 +159,9 @@ resource "aws_ecs_service" "app" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = module.vpc.private_subnets
+    subnets          = module.vpc.public_subnets
     security_groups  = [aws_security_group.app.id]
-    assign_public_ip = false
+    assign_public_ip = true # required when NAT Gateway is disabled
   }
 
   load_balancer {
