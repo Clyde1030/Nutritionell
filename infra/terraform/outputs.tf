@@ -80,6 +80,21 @@ output "region" {
   value       = data.aws_region.current.name
 }
 
+output "custom_domain" {
+  description = "Configured custom domain name"
+  value       = try(var.custom_domain_name, null)
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN for custom domain"
+  value       = try(aws_acm_certificate.site[0].arn, null)
+}
+
+output "cloudfront_domain_name" {
+  description = "CloudFront distribution domain"
+  value       = try(aws_cloudfront_distribution.site[0].domain_name, null)
+}
+
 # ---------- Glue / Athena ----------
 output "glue_database" {
   value       = aws_glue_catalog_database.main.name
