@@ -267,6 +267,7 @@ Application/web_new/npm-debug.log*
 Application/web_new/yarn-debug.log*
 Application/web_new/yarn-error.log*
 Application/web_new/pnpm-debug.log*
+Application/web_new/.env.local
 
 # Terraform
 .terraform/
