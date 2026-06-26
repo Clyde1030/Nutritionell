@@ -257,6 +257,17 @@ Application/web/yarn-debug.log*
 Application/web/yarn-error.log*
 Application/web/pnpm-debug.log*
 
+Application/web_new/node_modules/
+Application/web_new/.next/
+Application/web_new/out/
+Application/web_new/.turbo/
+Application/web_new/.vercel/
+Application/web_new/coverage/
+Application/web_new/npm-debug.log*
+Application/web_new/yarn-debug.log*
+Application/web_new/yarn-error.log*
+Application/web_new/pnpm-debug.log*
+
 # Terraform
 .terraform/
 *.tfstate
