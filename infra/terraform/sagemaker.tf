@@ -54,7 +54,7 @@ resource "aws_sagemaker_domain" "main" {
 
     jupyter_lab_app_settings {
       default_resource_spec {
-        instance_type = "ml.t3.medium"
+        instance_type = "ml.g5.xlarge"
       }
 
       app_lifecycle_management {
@@ -95,7 +95,7 @@ resource "aws_sagemaker_domain" "main" {
 
     jupyter_lab_app_settings {
       default_resource_spec {
-        instance_type = "ml.t3.medium"
+        instance_type = "ml.g5.xlarge"
       }
 
       app_lifecycle_management {
@@ -163,7 +163,9 @@ resource "aws_sagemaker_space" "jupyter_spaces" {
 
     jupyter_lab_app_settings {
       default_resource_spec {
-        instance_type = "ml.t3.medium"
+        instance_type                 = "ml.g5.xlarge"
+        sagemaker_image_arn           = "arn:aws:sagemaker:us-east-1:885854791233:image/sagemaker-distribution-gpu"
+        sagemaker_image_version_alias = "4.1.3"
       }
 
       app_lifecycle_management {
@@ -175,7 +177,7 @@ resource "aws_sagemaker_space" "jupyter_spaces" {
 
     space_storage_settings {
       ebs_storage_settings {
-        ebs_volume_size_in_gb = 20
+        ebs_volume_size_in_gb = 30
       }
     }
   }
