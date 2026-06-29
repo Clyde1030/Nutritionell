@@ -1,5 +1,5 @@
 locals {
-  custom_domain_enabled = var.enable_custom_domain && var.custom_domain_name != null && trimspace(var.custom_domain_name) != ""
+  custom_domain_enabled = var.enable_custom_domain && try(trimspace(var.custom_domain_name), "") != ""
   dns_zone_fqdn         = "${trimsuffix(var.dns_zone_name, ".")}."
   san_alias_names       = local.custom_domain_enabled && var.enable_cloudfront ? toset(var.custom_domain_san_names) : toset([])
 }

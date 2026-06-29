@@ -259,7 +259,7 @@ Application/web/pnpm-debug.log*
 
 # Terraform
 .terraform/
+*.tfstate
 *.tfstate.*
-*.tfstate.backup
 *.tfvars
 !*.tfvars.example
