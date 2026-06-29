@@ -1,7 +1,10 @@
 locals {
   custom_domain_enabled = var.enable_custom_domain && try(trimspace(var.custom_domain_name), "") != ""
   dns_zone_fqdn         = "${trimsuffix(var.dns_zone_name, ".")}."
-  san_alias_names       = local.custom_domain_enabled && var.enable_cloudfront ? toset(var.custom_domain_san_names) : toset([])
+  # Always include www.<apex> as a SAN/alias when using an apex custom domain.
+  default_www_san_name = local.custom_domain_enabled && try(!startswith(var.custom_domain_name, "www."), false) ? "www.${var.custom_domain_name}" : null
+  effective_san_names   = local.custom_domain_enabled ? distinct(compact(concat(var.custom_domain_san_names, local.default_www_san_name == null ? [] : [local.default_www_san_name]))) : []
+  san_alias_names       = local.custom_domain_enabled && var.enable_cloudfront ? toset(local.effective_san_names) : toset([])
 }
 
 data "aws_route53_zone" "site" {
@@ -15,7 +18,7 @@ resource "aws_acm_certificate" "site" {
   provider                  = aws.us_east_1
   count                     = local.custom_domain_enabled ? 1 : 0
   domain_name               = var.custom_domain_name
-  subject_alternative_names = var.custom_domain_san_names
+  subject_alternative_names = local.effective_san_names
   validation_method         = "DNS"
 
   lifecycle {
@@ -57,7 +60,7 @@ resource "aws_cloudfront_distribution" "site" {
   enabled = true
 
   is_ipv6_enabled = true
-  aliases         = concat([var.custom_domain_name], var.custom_domain_san_names)
+  aliases         = concat([var.custom_domain_name], local.effective_san_names)
   price_class     = var.cloudfront_price_class
   comment         = "${var.name_prefix} ${var.environment} distribution"
 
