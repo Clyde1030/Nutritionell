@@ -25,6 +25,21 @@ output "api_url" {
   value       = local.custom_domain_enabled ? "https://${local.api_domain_name}" : null
 }
 
+output "app_url" {
+  description = "web_new URL served via Amplify Hosting (null unless enable_custom_domain=true)"
+  value       = local.custom_domain_enabled ? "https://${local.app_domain_name}" : null
+}
+
+output "amplify_app_id" {
+  description = "Amplify app ID -- use this to connect the GitHub repo in the console"
+  value       = try(aws_amplify_app.web_new[0].id, null)
+}
+
+output "amplify_default_domain" {
+  description = "Amplify's own domain, live as soon as a branch deploys (before DNS cutover)"
+  value       = try(aws_amplify_branch.main[0].branch_name, null) != null ? "https://main.${aws_amplify_app.web_new[0].default_domain}" : null
+}
+
 # ---------- S3 ----------
 output "images_bucket" {
   value = aws_s3_bucket.images.bucket
