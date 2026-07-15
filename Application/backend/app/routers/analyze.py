@@ -6,10 +6,12 @@ Route:
     - image      : UploadFile  (JPEG / PNG from the camera)
     - profile_id : str (UUID of the user's saved profile)
 """
+import logging
 import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from google.genai import errors as genai_errors
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +20,7 @@ from app.models.user import UserProfile
 from app.schemas.ai_output import ShelfAnalysisResponse
 from app.services.gemini_service import GeminiService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["analyze"])
 
 gemini_service = GeminiService()
@@ -53,11 +56,18 @@ async def analyze_shelf(
         raise HTTPException(status_code=413, detail="Image too large. Max 20 MB.")
 
     # ── Run the AI pipeline ─────────────────────────────────────────────────
-    analysis = await gemini_service.analyze_shelf(
-        image_bytes=image_bytes,
-        mime_type=image.content_type,
-        profile=profile,
-        db=db,
-    )
+    try:
+        analysis = await gemini_service.analyze_shelf(
+            image_bytes=image_bytes,
+            mime_type=image.content_type,
+            profile=profile,
+            db=db,
+        )
+    except genai_errors.APIError as exc:
+        logger.error("Gemini API error during shelf analysis: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="The AI analysis service is temporarily unavailable. Please try again in a moment.",
+        )
 
     return analysis

@@ -1,13 +1,14 @@
 """
 Gemini multimodal AI service — shelf analysis + nutrition plan generation.
 """
+import asyncio
 import io
 import json
 import logging
 from typing import Optional
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,12 @@ from app.services.yolo_service import yolo_service
 logger = logging.getLogger(__name__)
 
 PHILOSOPHY_MAP = {p["key"]: p for p in DIETARY_PHILOSOPHIES}
+
+# Codes worth retrying: 429 (rate limited) and the 5xx transient overload codes
+# Gemini returns under load (we've seen live 503 "UNAVAILABLE" during scans).
+_RETRYABLE_CODES = {429, 500, 503, 504}
+_MAX_ATTEMPTS = 3
+_RETRY_BASE_DELAY_SECONDS = 1.0
 
 PROCESSING_LEVEL_LABELS = {
     0: "unprocessed whole foods only",
@@ -92,6 +99,25 @@ class GeminiService:
                 raise RuntimeError("GEMINI_API_KEY is not set in .env")
             self._client = genai.Client(api_key=settings.gemini_api_key)
         return self._client
+
+    async def _generate_content(self, **kwargs):
+        """generate_content with retry/backoff for transient Gemini errors (429/5xx).
+
+        Non-retryable errors (e.g. bad request, auth) and errors that persist past
+        the last attempt are re-raised to the caller.
+        """
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                return self.client.models.generate_content(**kwargs)
+            except errors.APIError as exc:
+                if exc.code not in _RETRYABLE_CODES or attempt == _MAX_ATTEMPTS - 1:
+                    raise
+                delay = _RETRY_BASE_DELAY_SECONDS * (2 ** attempt)
+                logger.warning(
+                    "Gemini API error %s (attempt %d/%d), retrying in %.1fs: %s",
+                    exc.code, attempt + 1, _MAX_ATTEMPTS, delay, exc.message,
+                )
+                await asyncio.sleep(delay)
 
     # ── Shelf analysis ────────────────────────────────────────────────────────
 
@@ -170,7 +196,7 @@ class GeminiService:
             contents.append(f"Crop {i + 1}:")
             contents.append(types.Part.from_bytes(data=crop_bytes, mime_type="image/jpeg"))
 
-        response = self.client.models.generate_content(
+        response = await self._generate_content(
             model="gemini-2.5-flash-lite",
             contents=contents,
             config=types.GenerateContentConfig(
@@ -209,7 +235,7 @@ class GeminiService:
             "Return ONLY a JSON array. No markdown, no commentary."
         )
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-        response = self.client.models.generate_content(
+        response = await self._generate_content(
             model="gemini-2.5-flash-lite",
             contents=[system_prompt, image_part],
             config=types.GenerateContentConfig(
@@ -286,7 +312,7 @@ Return a JSON array (one object per product, same order) with:
 
 Return ONLY the JSON array."""
 
-        response = self.client.models.generate_content(
+        response = await self._generate_content(
             model="gemini-2.5-flash-lite",
             contents=system_prompt,
             config=types.GenerateContentConfig(
@@ -374,7 +400,7 @@ Generate a detailed, actionable nutrition plan. Return ONLY a JSON object with t
 
 Return ONLY the JSON object. No markdown."""
 
-        response = self.client.models.generate_content(
+        response = await self._generate_content(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(

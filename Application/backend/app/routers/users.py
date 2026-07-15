@@ -6,6 +6,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from google.genai import errors as genai_errors
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,5 +93,12 @@ async def generate_nutrition_plan(
 
     from app.services.gemini_service import GeminiService
     svc = GeminiService()
-    plan = await svc.generate_nutrition_plan(profile)
+    try:
+        plan = await svc.generate_nutrition_plan(profile)
+    except genai_errors.APIError as exc:
+        logger.error("Gemini API error during nutrition plan generation: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="The AI planning service is temporarily unavailable. Please try again in a moment.",
+        )
     return plan
