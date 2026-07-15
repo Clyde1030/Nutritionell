@@ -14,6 +14,11 @@ output "rds_endpoint" {
   value       = aws_db_instance.postgres.endpoint
 }
 
+output "bastion_instance_id" {
+  description = "SSM bastion instance ID (null unless enable_bastion=true)"
+  value       = try(aws_instance.bastion[0].id, null)
+}
+
 # ---------- S3 ----------
 output "images_bucket" {
   value = aws_s3_bucket.images.bucket

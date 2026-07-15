@@ -78,19 +78,15 @@ resource "aws_security_group" "app" {
   }
 }
 
-# RDS: only the app tasks may reach port 5432
+# RDS: only the app tasks (and, when enabled, the bastion) may reach port 5432.
+# Ingress is declared via standalone aws_security_group_rule resources (here and in
+# bastion.tf) rather than inline `ingress {}` blocks -- mixing the two styles on one
+# SG makes Terraform treat whichever is inline as the complete set and rip out any
+# rule added by the other.
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
   description = "Postgres access from app only"
   vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    description     = "Postgres from app"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.app.id]
-  }
 
   egress {
     from_port   = 0
@@ -98,4 +94,14 @@ resource "aws_security_group" "rds" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+resource "aws_security_group_rule" "rds_from_app" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.app.id
+  description              = "Postgres from app"
 }

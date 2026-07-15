@@ -177,6 +177,13 @@ variable "idle_timeout_in_minutes" {
   }
 }
 
+# --- Bastion (SSM tunnel to RDS) ---
+variable "enable_bastion" {
+  description = "Create a small EC2 bastion for SSM port-forwarding to RDS. Toggle on only when you need a DB tunnel, then back off."
+  type        = bool
+  default     = false
+}
+
 # --- Glue / Athena ---
 variable "glue_database_name" {
   description = "Glue Data Catalog database for project tables"
