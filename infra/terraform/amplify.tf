@@ -1,19 +1,23 @@
 # Amplify Hosting for web_new (Next.js 14, App Router, with a few of its own
 # server route handlers -- needs SSR compute, not a static bucket).
 #
-# `repository` / `access_token` are deliberately NOT set here: GitHub connections
-# are meant to go through the Amplify GitHub App (an interactive OAuth consent
-# you do once in the console), not a long-lived personal access token sitting in
-# Terraform state. After apply, connect the repo once via:
-#   Amplify console -> this app -> "Connect branch" -> GitHub -> select `main`.
-
+# `access_token` is deliberately NOT set/kept here: connecting the repo was a
+# one-off `aws amplify update-app --access-token ...` CLI call (2026-07-15) --
+# AWS uses that token once to create its own webhook + deploy key and doesn't
+# need it again, so it was never worth persisting in Terraform state. Once
+# connected, though, `repository` itself must be mirrored in this resource, or
+# the next `terraform apply` would see it as drift and null the connection
+# back out (repository isn't set anywhere else, so Terraform would "correct"
+# it to absent).
 resource "aws_amplify_app" "web_new" {
-  count    = local.custom_domain_enabled ? 1 : 0
-  name     = "${var.name_prefix}-web-new"
-  platform = "WEB_COMPUTE" # Next.js SSR/route-handler support
+  count      = local.custom_domain_enabled ? 1 : 0
+  name       = "${var.name_prefix}-web-new"
+  platform   = "WEB_COMPUTE" # Next.js SSR/route-handler support
+  repository = "https://github.com/clyde1030/nutritionell"
 
   environment_variables = {
-    NEXT_PUBLIC_API_URL = "https://${local.api_domain_name}"
+    NEXT_PUBLIC_API_URL       = "https://${local.api_domain_name}"
+    AMPLIFY_MONOREPO_APP_ROOT = "Application/web_new"
   }
 
   # Monorepo setting: web_new lives at Application/web_new, not the repo root.
@@ -48,7 +52,8 @@ resource "aws_amplify_branch" "main" {
   enable_auto_build = true
 
   environment_variables = {
-    NEXT_PUBLIC_API_URL = "https://${local.api_domain_name}"
+    NEXT_PUBLIC_API_URL       = "https://${local.api_domain_name}"
+    AMPLIFY_MONOREPO_APP_ROOT = "Application/web_new"
   }
 }
 
