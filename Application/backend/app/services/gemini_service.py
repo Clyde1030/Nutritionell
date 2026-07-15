@@ -1,12 +1,14 @@
 """
 Gemini multimodal AI service — shelf analysis + nutrition plan generation.
 """
+import io
 import json
 import logging
 from typing import Optional
 
 from google import genai
 from google.genai import types
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -22,7 +24,9 @@ from app.schemas.user import (
     NutritionPlanResponse,
     NutritionPlanStep,
 )
+from app.services.image_utils import crop_boxes, pixel_bbox_to_normalized
 from app.services.rag_service import rag_service
+from app.services.yolo_service import yolo_service
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,7 @@ class GeminiService:
         profile: UserProfile,
         db: AsyncSession,
     ) -> ShelfAnalysisResponse:
-        raw_products = await self._vision_pass(image_bytes, mime_type, profile)
+        raw_products = await self._detect_and_identify(image_bytes, mime_type, profile)
 
         enriched = []
         for item in raw_products:
@@ -115,6 +119,80 @@ class GeminiService:
             products=products,
             total_products_found=len(products),
         )
+
+    async def _detect_and_identify(
+        self, image_bytes: bytes, mime_type: str, profile: UserProfile
+    ) -> list[dict]:
+        """Localise products with YOLO, then identify each crop with Gemini.
+
+        Falls back to the whole-image Gemini vision pass (which does its own,
+        less precise, localisation) when YOLO finds nothing -- e.g. a close-up
+        photo of a single product rather than a shelf.
+        """
+        try:
+            boxes = yolo_service.detect(
+                image_bytes,
+                conf=settings.yolo_conf_threshold,
+                iou=settings.yolo_iou_threshold,
+            )
+        except Exception as exc:
+            logger.error("YOLO detection failed, falling back to whole-image vision pass: %s", exc)
+            boxes = []
+
+        if not boxes:
+            return await self._vision_pass(image_bytes, mime_type, profile)
+
+        boxes.sort(key=lambda b: b["confidence"], reverse=True)
+        boxes = boxes[: settings.yolo_max_detections]
+
+        return await self._vision_pass_from_crops(image_bytes, boxes, profile)
+
+    async def _vision_pass_from_crops(
+        self, image_bytes: bytes, boxes: list[dict], profile: UserProfile
+    ) -> list[dict]:
+        img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
+        crops = crop_boxes(image_bytes, boxes)
+
+        system_prompt = (
+            "You are a grocery product identification AI. "
+            f"You are given {len(crops)} cropped photos, each showing exactly one product, "
+            "in order (Crop 1, Crop 2, ...).\n\n"
+            "For EACH crop return a JSON object with these exact keys:\n"
+            "  brand          : string (brand name or 'Unknown')\n"
+            "  product_name   : string (product name or 'Unidentified Product')\n"
+            "  visible_text   : string (all text visible on the label)\n"
+            "  detected_ingredients : array of strings (ingredient names you can read)\n\n"
+            f"Return ONLY a JSON array with exactly {len(crops)} objects, same order as the crops. "
+            "No markdown, no commentary."
+        )
+        contents: list = [system_prompt]
+        for i, crop_bytes in enumerate(crops):
+            contents.append(f"Crop {i + 1}:")
+            contents.append(types.Part.from_bytes(data=crop_bytes, mime_type="image/jpeg"))
+
+        response = self.client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                temperature=0.1, response_mime_type="application/json"
+            ),
+        )
+
+        try:
+            raw = json.loads(response.text)
+            if not isinstance(raw, list):
+                raw = raw.get("products", raw.get("items", [raw]))
+        except Exception as exc:
+            logger.error("Crop identification pass parse error: %s", exc)
+            raw = []
+
+        products = []
+        for i, box in enumerate(boxes):
+            item = raw[i] if i < len(raw) else {}
+            item["bounding_box"] = pixel_bbox_to_normalized(box["bbox"], img_w, img_h)
+            products.append(item)
+
+        return products
 
     async def _vision_pass(
         self, image_bytes: bytes, mime_type: str, profile: UserProfile

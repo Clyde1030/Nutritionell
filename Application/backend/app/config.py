@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
 
+    # YOLO product detector
+    yolo_conf_threshold: float = 0.25
+    yolo_iou_threshold: float = 0.4
+    yolo_max_detections: int = 40
+
     # FastAPI
     api_host: str = "0.0.0.0"
     api_port: int = 8000
