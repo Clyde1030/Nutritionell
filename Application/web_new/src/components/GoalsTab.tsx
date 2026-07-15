@@ -1,21 +1,49 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { ENDPOINTS } from '@/lib/api';
 import { GOAL_PROMPTS } from '@/lib/data';
-import { getProfile, saveProfile } from '@/lib/storage';
+import { getProfileId } from '@/lib/storage';
+import type { UserProfile } from '@/lib/types';
 import s from './GoalsTab.module.css';
 
 export default function GoalsTab() {
   const [goals, setGoals] = useState('');
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => { setGoals(getProfile()?.free_text_goals ?? ''); }, []);
+  useEffect(() => {
+    const id = getProfileId();
+    setProfileId(id);
+    if (!id) return;
+    fetch(ENDPOINTS.getProfile(id))
+      .then(r => r.json())
+      .then((p: UserProfile) => setGoals(p.free_text_goals ?? ''))
+      .catch(() => {});
+  }, []);
 
   const addPrompt = (p: string) => setGoals(prev => prev.trim() ? `${prev.trim()}\n${p}` : p);
 
-  const handleSave = () => {
-    saveProfile({ free_text_goals: goals.trim() });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    if (!profileId) { alert('Please complete your Profile first.'); return; }
+    setSaving(true);
+    try {
+      const r = await fetch(ENDPOINTS.updateProfile(profileId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ free_text_goals: goals.trim() }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Server error ${r.status}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      alert(`Save failed: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -41,8 +69,12 @@ export default function GoalsTab() {
           ))}
         </div>
 
-        <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave}>
-          {saved ? '✓ Goals saved' : 'Save Goals'}
+        {!profileId && (
+          <p className={s.sub} style={{ marginTop: 12 }}>⚠️ Set up your profile first — goals save to it.</p>
+        )}
+
+        <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave} disabled={saving}>
+          {saved ? '✓ Goals saved' : saving ? 'Saving…' : 'Save Goals'}
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { getProfile } from '@/lib/storage';
+import { ENDPOINTS } from '@/lib/api';
+import { getProfileId } from '@/lib/storage';
 import type { NutritionPlanResponse, NutritionPlanStep } from '@/lib/types';
 import s from './PlanTab.module.css';
 
@@ -12,16 +13,16 @@ export default function PlanTab() {
   const [loading, setLoading] = useState(false);
 
   const generate = async () => {
-    const profile = getProfile();
-    if (!profile) { alert('Please complete your Profile first.'); return; }
+    const profileId = getProfileId();
+    if (!profileId) { alert('Please complete your Profile first.'); return; }
     setLoading(true);
     try {
-      const r = await fetch('/api/plan', {
+      const r = await fetch(ENDPOINTS.nutritionPlan, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile }),
+        body: JSON.stringify({ profile_id: profileId }),
       });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.error ?? `Server ${r.status}`); }
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
       setPlan(await r.json());
     } catch (e: any) {
       alert(`Generation failed: ${e.message}`);
@@ -51,7 +52,7 @@ export default function PlanTab() {
             {[
               'Complete your Profile (Profile tab)',
               'Set your Health Goals (Goals tab)',
-              'Add GEMINI_API_KEY to web/.env.local for real AI — mock works without it',
+              'Add GEMINI_API_KEY to Application/backend/.env for real AI',
             ].map(t => (
               <div key={t} className={s.reqRow}>
                 <span className={s.reqIcon}>✓</span>

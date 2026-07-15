@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
-import { getProfile } from '@/lib/storage';
+import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
+import { getProfileId } from '@/lib/storage';
 import type { ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS } from '@/lib/types';
 import s from './ScanTab.module.css';
@@ -29,20 +30,26 @@ export default function ScanTab() {
   const [loadingRecs, setLoadingRecs] = useState(false);
 
   const analyze = async (file: File) => {
+    const profileId = getProfileId();
+    if (!profileId) {
+      alert('Set up your profile first for personalised scoring.');
+      return;
+    }
+
     setView('analyzing');
     setStatus('Uploading image…');
     const url = URL.createObjectURL(file);
     setImageUrl(url);
 
     try {
-      const profile = getProfile();
       const fd = new FormData();
       fd.append('image', file);
-      if (profile) fd.append('profile', JSON.stringify(profile));
+      fd.append('profile_id', profileId);
 
       setStatus('Identifying products…');
-      const r = await fetch('/api/analyze', { method: 'POST', body: fd });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.error ?? `Server ${r.status}`); }
+      const endpoint = USE_MOCK_ANALYZE ? ENDPOINTS.analyzeMock : ENDPOINTS.analyze;
+      const r = await fetch(endpoint, { method: 'POST', body: fd });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
 
       setStatus('Scoring against your profile…');
       const data: ShelfAnalysisResponse = await r.json();
@@ -283,7 +290,7 @@ export default function ScanTab() {
           ))}
         </div>
 
-        {!getProfile() && (
+        {!getProfileId() && (
           <div className={s.warning}>⚠️ Set up your profile first for personalised scoring</div>
         )}
       </div>

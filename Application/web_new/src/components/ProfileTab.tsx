@@ -1,11 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ALLERGIES, INGREDIENT_CATEGORIES, PHILOSOPHIES, PROCESSING_LABELS } from '@/lib/data';
-import { getProfile, saveProfile } from '@/lib/storage';
-import type { PhilosophyOption } from '@/lib/types';
+import { ENDPOINTS } from '@/lib/api';
+import { getProfileId, setProfileId as persistProfileId } from '@/lib/storage';
+import type { PhilosophyOption, ProfileOptions, UserProfile } from '@/lib/types';
 import s from './ProfileTab.module.css';
 
 export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
+  const [options, setOptions] = useState<ProfileOptions | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+  const [profileId, setLocalProfileId] = useState<string | null>(null);
+
   const [name, setName] = useState('');
   const [philosophy, setPhilosophy] = useState('No Preference');
   const [isCustom, setIsCustom] = useState(false);
@@ -14,6 +18,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const [allergies, setAllergies] = useState<string[]>([]);
   const [avoided, setAvoided] = useState<string[]>([]);
   const [tolerance, setTolerance] = useState(3);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   // Modals
@@ -23,43 +28,97 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const [buildModal, setBuildModal] = useState(false);
 
   useEffect(() => {
-    const p = getProfile();
-    if (!p) return;
-    setName(p.name ?? '');
-    setAllergies(p.allergies_and_conditions ?? []);
-    setTolerance(p.processed_food_tolerance ?? 3);
-    setAvoided(p.avoided_ingredients ?? []);
-    if (p.dietary_philosophy === 'custom') { setIsCustom(true); setCustomText(p.custom_philosophy_text ?? ''); }
-    else setPhilosophy(p.dietary_philosophy ?? 'No Preference');
-    try {
-      const c = JSON.parse(p.philosophy_customizations || '{}');
-      setCustomizations({ stricter: (c.stricter ?? []).join('\n'), lenient: (c.lenient ?? []).join('\n'), extra: (c.extra ?? []).join('\n') });
-    } catch {}
+    setLocalProfileId(getProfileId());
+    fetch(ENDPOINTS.profileOptions)
+      .then(r => r.json())
+      .then(setOptions)
+      .catch(() => setConnectionError(true));
   }, []);
+
+  useEffect(() => {
+    if (!profileId || !options) return;
+    fetch(ENDPOINTS.getProfile(profileId))
+      .then(r => r.json())
+      .then((p: UserProfile) => {
+        setName(p.name ?? '');
+        setAllergies(p.allergies_and_conditions ?? []);
+        setTolerance(p.processed_food_tolerance ?? 3);
+        setAvoided(p.avoided_ingredients ?? []);
+        if (p.dietary_philosophy === 'custom') { setIsCustom(true); setCustomText(p.custom_philosophy_text ?? ''); }
+        else setPhilosophy(p.dietary_philosophy ?? 'No Preference');
+        try {
+          const c = JSON.parse(p.philosophy_customizations || '{}');
+          setCustomizations({ stricter: (c.stricter ?? []).join('\n'), lenient: (c.lenient ?? []).join('\n'), extra: (c.extra ?? []).join('\n') });
+        } catch {}
+      })
+      .catch(() => {});
+  }, [profileId, options]);
 
   const toggle = (arr: string[], setArr: (v: string[]) => void, key: string) =>
     setArr(arr.includes(key) ? arr.filter(x => x !== key) : [...arr, key]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const c = {
       stricter: customizations.stricter.split('\n').map(x => x.trim()).filter(Boolean),
       lenient: customizations.lenient.split('\n').map(x => x.trim()).filter(Boolean),
       extra: customizations.extra.split('\n').map(x => x.trim()).filter(Boolean),
     };
-    saveProfile({
-      name, allergies_and_conditions: allergies,
+    const body = {
+      name: name.trim() || undefined,
+      allergies_and_conditions: allergies,
       dietary_philosophy: isCustom ? 'custom' : philosophy,
       philosophy_customizations: JSON.stringify(c),
-      custom_philosophy_text: isCustom ? customText : '',
+      custom_philosophy_text: isCustom ? customText : undefined,
       avoided_ingredients: avoided,
       processed_food_tolerance: tolerance,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    onSaved?.();
+    };
+    setSaving(true);
+    try {
+      const url = profileId ? ENDPOINTS.updateProfile(profileId) : ENDPOINTS.createProfile;
+      const r = await fetch(url, {
+        method: profileId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail ?? `Server error ${r.status}`);
+      }
+      const savedProfile: UserProfile = await r.json();
+      persistProfileId(savedProfile.id);
+      setLocalProfileId(savedProfile.id);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      onSaved?.();
+    } catch (e: any) {
+      alert(`Save failed: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const philData = PHILOSOPHIES.find(p => p.key === philosophy);
+  if (connectionError) {
+    return (
+      <div className={s.page}>
+        <div className={s.container}>
+          <div className={s.warning}>⚠️ Cannot reach the backend — make sure it&apos;s running on port 8000.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!options) {
+    return (
+      <div className={s.page}>
+        <div className={s.container}>
+          <p className={s.sub}>Connecting to server…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const philData = options.dietary_philosophies.find(p => p.key === philosophy);
+  const toleranceLabel = options.processed_food_tolerance_labels[String(tolerance)] ?? 'Moderate processing';
 
   return (
     <div className={s.page}>
@@ -80,7 +139,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
           <label className={s.label}>Dietary Philosophy</label>
           {!isCustom && (
             <div className={s.pillRow}>
-              {PHILOSOPHIES.map(p => (
+              {options.dietary_philosophies.map(p => (
                 <button key={p.key} className={`${s.pill} ${philosophy === p.key ? s.pillActive : ''}`}
                   onClick={() => setPhilosophy(p.key)}>{p.key}</button>
               ))}
@@ -113,7 +172,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         <section className={s.section}>
           <label className={s.label}>Allergies & Conditions <span className={s.hint}>— click ℹ for details</span></label>
           <div className={s.listGroup}>
-            {ALLERGIES.map(a => (
+            {options.allergies_and_conditions.map(a => (
               <div key={a.key} className={s.listRow}>
                 <button className={`${s.listCheck} ${allergies.includes(a.key) ? s.listCheckOn : ''}`}
                   onClick={() => toggle(allergies, setAllergies, a.key)}>
@@ -132,7 +191,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         <section className={s.section}>
           <label className={s.label}>Ingredients to Avoid <span className={s.hint}>— click ℹ for examples</span></label>
           <div className={s.listGroup}>
-            {INGREDIENT_CATEGORIES.map(cat => (
+            {options.ingredient_categories.map(cat => (
               <div key={cat.category} className={s.listRow}>
                 <button className={`${s.listCheck} ${avoided.includes(cat.category) ? s.listCheckRed : ''}`}
                   onClick={() => toggle(avoided, setAvoided, cat.category)}>
@@ -153,7 +212,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         {/* Processing tolerance */}
         <section className={s.section}>
           <label className={s.label}>Processed Food Tolerance</label>
-          <p className={s.toleranceLabel}>{PROCESSING_LABELS[tolerance]}</p>
+          <p className={s.toleranceLabel}>{toleranceLabel}</p>
           <div className={s.segmentRow}>
             {[0, 1, 2, 3, 4].map(n => (
               <button key={n} className={`${s.segment} ${tolerance === n ? s.segmentOn : ''}`}
@@ -163,8 +222,8 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
           <div className={s.segmentLabels}><span>None</span><span>Any</span></div>
         </section>
 
-        <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave}>
-          {saved ? '✓ Saved' : 'Save Profile'}
+        <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave} disabled={saving}>
+          {saved ? '✓ Saved' : saving ? 'Saving…' : profileId ? 'Update Profile' : 'Save Profile'}
         </button>
       </div>
 
