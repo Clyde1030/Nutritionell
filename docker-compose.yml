@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: nutritionell
+      POSTGRES_PASSWORD: nutritionell_secret
+      POSTGRES_DB: nutritionell_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - nutritionell_pg_data:/var/lib/postgresql/data
+
+volumes:
+  nutritionell_pg_data:
