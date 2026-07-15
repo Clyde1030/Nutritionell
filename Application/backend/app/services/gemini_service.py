@@ -81,6 +81,7 @@ def _build_profile_context(profile: UserProfile) -> str:
 
     return f"""USER PROFILE:
 Name: {profile.name or 'User'}
+Sex: {profile.sex or 'Not specified'}
 Dietary Philosophy: {phil_text}{customizations}
 Allergies & Conditions: {', '.join(allergies) if allergies else 'None'}
 Health Goals: {profile.free_text_goals or 'None provided'}

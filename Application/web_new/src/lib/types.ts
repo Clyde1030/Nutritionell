@@ -42,6 +42,7 @@ export interface ShelfAnalysisResponse {
 export interface UserProfile {
   id: string;
   name?: string;
+  sex?: string;
   allergies_and_conditions: string[];
   free_text_goals?: string;
   dietary_philosophy?: string;
@@ -72,7 +73,13 @@ export interface IngredientCategory {
   concern: string;
 }
 
+export interface SexOption {
+  key: string;
+  description: string;
+}
+
 export interface ProfileOptions {
+  sex_options: SexOption[];
   allergies_and_conditions: AllergyOption[];
   dietary_philosophies: PhilosophyOption[];
   ingredient_categories: IngredientCategory[];

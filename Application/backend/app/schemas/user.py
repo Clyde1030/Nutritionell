@@ -25,6 +25,13 @@ ALLERGIES_AND_CONDITIONS: List[Dict[str, str]] = [
     {"key": "Kidney Disease",              "description": "Flags high potassium (>200mg), high phosphorus, and high sodium. Requires careful monitoring of protein and mineral intake."},
 ]
 
+# ── Sex options ────────────────────────────────────────────────────────────────
+
+SEX_OPTIONS: List[Dict[str, str]] = [
+    {"key": "Female", "description": "Used to tailor iron, calcium, and calorie guidance to female-specific nutritional needs."},
+    {"key": "Male", "description": "Used to tailor protein, iron, and calorie guidance to male-specific nutritional needs."},
+]
+
 # ── Dietary philosophies with descriptions ────────────────────────────────────
 
 DIETARY_PHILOSOPHIES: List[Dict[str, Any]] = [
@@ -205,6 +212,7 @@ PROCESSED_FOOD_TOLERANCE_LABELS = {
 
 class UserProfileCreate(BaseModel):
     name: Optional[str] = Field(None, max_length=120)
+    sex: Optional[str] = Field(None, max_length=20)
     allergies_and_conditions: List[str] = Field(default_factory=list)
     free_text_goals: Optional[str] = Field(None, max_length=2000)
     dietary_philosophy: Optional[str] = Field(None)
@@ -216,6 +224,7 @@ class UserProfileCreate(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=120)
+    sex: Optional[str] = Field(None, max_length=20)
     allergies_and_conditions: Optional[List[str]] = None
     free_text_goals: Optional[str] = Field(None, max_length=2000)
     dietary_philosophy: Optional[str] = None
@@ -228,6 +237,7 @@ class UserProfileUpdate(BaseModel):
 class UserProfileResponse(BaseModel):
     id: UUID
     name: Optional[str]
+    sex: Optional[str]
     allergies_and_conditions: List[str]
     free_text_goals: Optional[str]
     dietary_philosophy: Optional[str]
@@ -242,6 +252,7 @@ class UserProfileResponse(BaseModel):
 
 
 class ProfileOptionsResponse(BaseModel):
+    sex_options: List[Dict[str, str]] = SEX_OPTIONS
     allergies_and_conditions: List[Dict[str, str]] = ALLERGIES_AND_CONDITIONS
     dietary_philosophies: List[Dict[str, Any]] = DIETARY_PHILOSOPHIES
     ingredient_categories: List[Dict[str, Any]] = INGREDIENT_CATEGORIES

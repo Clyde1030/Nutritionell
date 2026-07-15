@@ -25,6 +25,9 @@ class UserProfile(Base):
 
     name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
+    # Optional — used to tailor recommendations (e.g. iron, protein targets differ by sex)
+    sex: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
     # ── Health constraints ───────────────────────────────────────────────────
     allergies_and_conditions: Mapped[List[str]] = mapped_column(
         ARRAY(String(100)), nullable=False, default=list, server_default="{}"

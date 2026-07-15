@@ -11,6 +11,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const [profileId, setLocalProfileId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
+  const [sex, setSex] = useState('');
   const [philosophy, setPhilosophy] = useState('No Preference');
   const [isCustom, setIsCustom] = useState(false);
   const [customText, setCustomText] = useState('');
@@ -41,6 +42,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
       .then(r => r.json())
       .then((p: UserProfile) => {
         setName(p.name ?? '');
+        setSex(p.sex ?? '');
         setAllergies(p.allergies_and_conditions ?? []);
         setTolerance(p.processed_food_tolerance ?? 3);
         setAvoided(p.avoided_ingredients ?? []);
@@ -65,6 +67,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
     };
     const body = {
       name: name.trim() || undefined,
+      sex: sex || undefined,
       allergies_and_conditions: allergies,
       dietary_philosophy: isCustom ? 'custom' : philosophy,
       philosophy_customizations: JSON.stringify(c),
@@ -132,6 +135,26 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         <section className={s.section}>
           <label className={s.label}>Your Name</label>
           <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Optional" />
+        </section>
+
+        {/* Sex */}
+        <section className={s.section}>
+          <div className={s.labelRow}>
+            <label className={s.label} style={{ marginBottom: 0 }}>Sex <span className={s.hint}>(optional)</span></label>
+            <button
+              className={s.infoBtnInline}
+              onClick={() => setInfoModal({
+                title: 'Why we ask for sex',
+                body: 'Nutritional needs differ by sex — for example, iron, calcium, and calorie targets vary. Sharing this helps us tailor recommendations more precisely. It’s entirely optional and only used to personalise your analysis.',
+              })}
+            >ℹ</button>
+          </div>
+          <div className={s.segmentRow}>
+            {options.sex_options.map(o => (
+              <button key={o.key} className={`${s.segment} ${sex === o.key ? s.segmentOn : ''}`}
+                onClick={() => setSex(sex === o.key ? '' : o.key)}>{o.key}</button>
+            ))}
+          </div>
         </section>
 
         {/* Philosophy */}

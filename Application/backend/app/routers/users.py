@@ -36,6 +36,7 @@ async def get_profile_options():
 async def create_profile(body: UserProfileCreate, db: AsyncSession = Depends(get_db)):
     profile = UserProfile(
         name=body.name,
+        sex=body.sex,
         allergies_and_conditions=body.allergies_and_conditions,
         free_text_goals=body.free_text_goals,
         dietary_philosophy=body.dietary_philosophy,
