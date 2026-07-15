@@ -19,6 +19,12 @@ output "bastion_instance_id" {
   value       = try(aws_instance.bastion[0].id, null)
 }
 
+# ---------- Custom domains ----------
+output "api_url" {
+  description = "HTTPS API endpoint (null unless enable_custom_domain=true)"
+  value       = local.custom_domain_enabled ? "https://${local.api_domain_name}" : null
+}
+
 # ---------- S3 ----------
 output "images_bucket" {
   value = aws_s3_bucket.images.bucket

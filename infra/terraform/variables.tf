@@ -10,15 +10,9 @@ variable "aws_profile" {
 }
 
 variable "enable_custom_domain" {
-  description = "Create ACM/Route53/CloudFront resources for a custom domain"
+  description = "Create ACM/Route53/Amplify domain resources for api.<zone> and app.<zone>"
   type        = bool
   default     = false
-}
-
-variable "custom_domain_name" {
-  description = "Primary FQDN for the site (for example, nutritionell.com)"
-  type        = string
-  default     = null
 }
 
 variable "terraform_assume_role_external_id" {
@@ -27,10 +21,32 @@ variable "terraform_assume_role_external_id" {
   default     = null
 }
 
-variable "custom_domain_san_names" {
-  description = "Additional SAN names for ACM and CloudFront aliases"
-  type        = list(string)
-  default     = []
+# --- Removed 2026-07-14: replaced by api_subdomain/app_subdomain below.
+# CloudFront-in-front-of-ALB is gone (see api_domain.tf) in favor of an ALB HTTPS
+# listener for the API, plus Amplify Hosting (amplify.tf) for web_new.
+#
+# variable "custom_domain_name" {
+#   description = "Primary FQDN for the site (for example, nutritionell.com)"
+#   type        = string
+#   default     = null
+# }
+#
+# variable "custom_domain_san_names" {
+#   description = "Additional SAN names for ACM and CloudFront aliases"
+#   type        = list(string)
+#   default     = []
+# }
+
+variable "api_subdomain" {
+  description = "Subdomain for the backend API (served via ALB + ACM)"
+  type        = string
+  default     = "api"
+}
+
+variable "app_subdomain" {
+  description = "Subdomain for the web_new frontend (served via Amplify Hosting)"
+  type        = string
+  default     = "app"
 }
 
 variable "dns_zone_name" {
@@ -63,17 +79,20 @@ variable "dns_assume_role_external_id" {
   default     = null
 }
 
-variable "enable_cloudfront" {
-  description = "Create CloudFront distribution in front of the ALB"
-  type        = bool
-  default     = true
-}
-
-variable "cloudfront_price_class" {
-  description = "CloudFront price class"
-  type        = string
-  default     = "PriceClass_100"
-}
+# --- Removed 2026-07-14: CloudFront-in-front-of-ALB dropped (see api_domain.tf
+# comment for why -- the old distribution cached nothing, TTLs were all 0).
+#
+# variable "enable_cloudfront" {
+#   description = "Create CloudFront distribution in front of the ALB"
+#   type        = bool
+#   default     = true
+# }
+#
+# variable "cloudfront_price_class" {
+#   description = "CloudFront price class"
+#   type        = string
+#   default     = "PriceClass_100"
+# }
 
 variable "environment" {
   type    = string

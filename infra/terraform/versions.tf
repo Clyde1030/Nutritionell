@@ -37,20 +37,24 @@ provider "aws" {
   }
 }
 
-# CloudFront certificates must be in us-east-1.
-provider "aws" {
-  alias   = "us_east_1"
-  region  = "us-east-1"
-  profile = var.aws_profile
-
-  default_tags {
-    tags = {
-      Project   = "nutritionell"
-      ManagedBy = "terraform"
-      Env       = var.environment
-    }
-  }
-}
+# --- Removed 2026-07-14: was only needed for CloudFront's ACM cert, which must
+# live in us-east-1 regardless of where the distribution's origin is. Dropped
+# along with edge_domain.tf's CloudFront distribution (see api_domain.tf) --
+# the ALB's own ACM cert just uses the default (var.aws_region) provider.
+#
+# provider "aws" {
+#   alias   = "us_east_1"
+#   region  = "us-east-1"
+#   profile = var.aws_profile
+#
+#   default_tags {
+#     tags = {
+#       Project   = "nutritionell"
+#       ManagedBy = "terraform"
+#       Env       = var.environment
+#     }
+#   }
+# }
 
 # Optional DNS account provider for cross-account Route53 updates.
 provider "aws" {

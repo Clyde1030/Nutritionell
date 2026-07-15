@@ -1,9 +1,9 @@
 # ---------- Application Load Balancer ----------
 resource "aws_lb" "this" {
   name               = "${var.name_prefix}-alb"
-  load_balancer_type = "application" # HTTP/HTTPS aware (vs "network" for raw TCP)
+  load_balancer_type = "application"               # HTTP/HTTPS aware (vs "network" for raw TCP)
   security_groups    = [aws_security_group.alb.id] # firewall defined in network.tf
-  subnets            = module.vpc.public_subnets # lives in public subnets — faces the internet
+  subnets            = module.vpc.public_subnets   # lives in public subnets — faces the internet
 }
 
 resource "aws_lb_target_group" "app" {
@@ -14,12 +14,12 @@ resource "aws_lb_target_group" "app" {
   target_type = "ip" # required for Fargate — containers don't have fixed EC2 instance IDs
 
   health_check {
-    path                = "/health"   # ALB polls this endpoint to know if the container is alive
-    matcher             = "200"       # must return HTTP 200 to be considered healthy
-    interval            = 30          # check every 30s
-    timeout             = 5           # fail if no response within 5s
-    healthy_threshold   = 2           # 2 consecutive passes = healthy
-    unhealthy_threshold = 3           # 3 consecutive fails = remove from rotation
+    path                = "/health" # ALB polls this endpoint to know if the container is alive
+    matcher             = "200"     # must return HTTP 200 to be considered healthy
+    interval            = 30        # check every 30s
+    timeout             = 5         # fail if no response within 5s
+    healthy_threshold   = 2         # 2 consecutive passes = healthy
+    unhealthy_threshold = 3         # 3 consecutive fails = remove from rotation
   }
 }
 
@@ -28,14 +28,31 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  # forwards all port-80 traffic to the target group (your app)
-  # comment says: swap to HTTPS redirect once you add ACM + Route 53
+  # Removed 2026-07-14: previously a single unconditional forward, e.g.
+  #   default_action {
+  #     type             = "forward"
+  #     target_group_arn = aws_lb_target_group.app.arn
+  #   }
+  # Once api_domain.tf's ACM cert + HTTPS listener exist, redirect plaintext
+  # traffic to HTTPS instead of forwarding it straight to the target group.
+  dynamic "default_action" {
+    for_each = local.custom_domain_enabled ? [1] : []
+    content {
+      type = "redirect"
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
 
-  # Once you add ACM + Route 53, switch this to redirect 80 -> 443
-  # and create an HTTPS listener on 443 with your certificate_arn.
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+  dynamic "default_action" {
+    for_each = local.custom_domain_enabled ? [] : [1]
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.app.arn
+    }
   }
 }
 
@@ -77,8 +94,8 @@ resource "aws_iam_role_policy" "execution_secrets" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
       Resource = [
         aws_secretsmanager_secret.database_url.arn,
         aws_secretsmanager_secret.gemini_api_key.arn,
@@ -115,12 +132,12 @@ resource "aws_iam_role_policy" "task_s3" {
 
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.name_prefix}-backend"
-  requires_compatibilities = ["FARGATE"]      # serverless containers, no EC2 to manage
-  network_mode             = "awsvpc"         # each task gets its own ENI and private IP
+  requires_compatibilities = ["FARGATE"] # serverless containers, no EC2 to manage
+  network_mode             = "awsvpc"    # each task gets its own ENI and private IP
   cpu                      = var.task_cpu
   memory                   = var.task_memory
-  execution_role_arn       = aws_iam_role.execution.arn  # startup permissions
-  task_role_arn            = aws_iam_role.task.arn       # runtime permissions
+  execution_role_arn       = aws_iam_role.execution.arn # startup permissions
+  task_role_arn            = aws_iam_role.task.arn      # runtime permissions
 
   container_definitions = jsonencode([{
     name      = "backend"
