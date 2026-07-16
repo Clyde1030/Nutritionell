@@ -204,6 +204,60 @@ aws s3 ls
 aws iam list-attached-user-policies --user-name <your-username>
 ```
 
+## 7. Cloud Testing
+
+Once `terraform apply` has run with `enable_custom_domain = true` (see `terraform.tfvars`), the backend and web_new are reachable over HTTPS at `api_url` / `app_url`:
+
+```bash
+terraform output api_url          # https://api.nutritionell.com
+terraform output app_url          # https://app.nutritionell.com
+terraform output amplify_default_domain  # Amplify's own URL, works before the repo is even connected
+```
+
+### Backend API
+
+The ALB + ECS Fargate service is live as soon as `terraform apply` finishes -- no extra step needed.
+
+```bash
+curl -s https://api.nutritionell.com/health          # {"status":"ok"}
+curl -s https://api.nutritionell.com/health/model    # confirms the YOLO model loaded
+```
+
+If either fails, check the running task and its logs before assuming the deploy is broken:
+
+```bash
+aws ecs describe-services --cluster nutritionell-cluster --services nutritionell-backend \
+  --query "services[0].{desired:desiredCount,running:runningCount,status:status}"
+
+aws logs tail /ecs/nutritionell-backend --since 30m --follow
+```
+
+### web_new (Amplify Hosting)
+
+`amplify.tf` creates the app/branch/domain, but **does not connect a GitHub repo** (that OAuth step has to happen once, interactively, in the console -- see the earlier plan discussion). Until it's connected and a build has run, `app.nutritionell.com` serves Amplify's default placeholder page, not web_new. Check which state you're in before testing:
+
+```bash
+aws amplify get-app --app-id "$(terraform output -raw amplify_app_id)" --query "app.repository"
+aws amplify list-jobs --app-id "$(terraform output -raw amplify_app_id)" --branch-name main \
+  --query "jobSummaries[].{status:status,startTime:startTime}"
+```
+
+- `repository` is `null` / `list-jobs` returns `[]` → repo isn't connected yet. Go to **Amplify console → nutritionell-web-new → Connect branch → GitHub → `main`** and let the first build run.
+- A job with `status: SUCCEED` exists → web_new is actually deployed. Confirm with:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://app.nutritionell.com   # 200 once deployed
+```
+
+### End-to-end (browser)
+
+With both pieces live:
+
+1. Open `https://app.nutritionell.com`.
+2. Exercise Profile, Goals, Scan, and Plan -- these call the backend directly from the browser via `NEXT_PUBLIC_API_URL` (set to `https://api.nutritionell.com` in `amplify.tf`).
+3. Open devtools → Network tab and confirm those requests hit `api.nutritionell.com` with 2xx responses, not CORS errors or `net::ERR_*` failures.
+4. Greenwashing / the recommender toggle / Ingredient Analytics are still mocked in web_new's own API routes -- they'll respond, but from web_new itself, not the FastAPI backend.
+
 ## Notes
 
 - This project uses **us-east-1** as the default region (see `variables.tf`).
