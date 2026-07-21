@@ -198,7 +198,7 @@ class GeminiService:
             contents.append(types.Part.from_bytes(data=crop_bytes, mime_type="image/jpeg"))
 
         response = await self._generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=contents,
             config=types.GenerateContentConfig(
                 temperature=0.1, response_mime_type="application/json"
@@ -237,7 +237,7 @@ class GeminiService:
         )
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         response = await self._generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=[system_prompt, image_part],
             config=types.GenerateContentConfig(
                 temperature=0.1, response_mime_type="application/json"
@@ -314,7 +314,7 @@ Return a JSON array (one object per product, same order) with:
 Return ONLY the JSON array."""
 
         response = await self._generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=system_prompt,
             config=types.GenerateContentConfig(
                 temperature=0.1, response_mime_type="application/json"
@@ -402,7 +402,7 @@ Generate a detailed, actionable nutrition plan. Return ONLY a JSON object with t
 Return ONLY the JSON object. No markdown."""
 
         response = await self._generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3, response_mime_type="application/json"
