@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "source": "JECFA evaluations, EFSA Scientific Opinions, FDA regulations",
+    "urls": [
+      "https://apps.who.int/food-additives-contaminants-jecfa-database/",
+      "https://www.efsa.europa.eu/en/topics/topic/food-additives",
+      "https://www.ecfr.gov/current/title-21"
+    ],
+    "last_updated": "2026-06-21",
+    "units": "mg/kg body weight per day unless otherwise noted",
+    "how_to_update": "Add entries with name, adi_value, adi_numeric (number for comparison), source, and year fields. Set adi_numeric to 999 for 'not specified' and 0 for 'no safe level'."
+  },
+  "additives": [
+    { "name": "Acesulfame potassium (Ace-K)", "adi_value": "9 mg/kg bw/day", "adi_numeric": 9, "source": "JECFA (1990), EFSA reaffirmed 2009", "year": 2009, "notes": "E950" },
+    { "name": "Allura Red AC (Red 40)", "adi_value": "7 mg/kg bw/day", "adi_numeric": 7, "source": "JECFA (1981), EFSA reaffirmed 2009", "year": 2009, "notes": "E129. EFSA refined exposure assessment 2015." },
+    { "name": "Amaranth (Red 2)", "adi_value": "0.5 mg/kg bw/day", "adi_numeric": 0.5, "source": "JECFA (1984)", "year": 1984, "notes": "E123. Banned in US." },
+    { "name": "Annatto extracts (Bixin)", "adi_value": "6 mg/kg bw/day", "adi_numeric": 6, "source": "JECFA (2006)", "year": 2006, "notes": "E160b" },
+    { "name": "Aspartame", "adi_value": "40 mg/kg bw/day", "adi_numeric": 40, "source": "EFSA (2013), JECFA reaffirmed 2023", "year": 2023, "notes": "E951. FDA ADI is 50 mg/kg. IARC 2B (2023)." },
+    { "name": "Azorubine (Carmoisine)", "adi_value": "4 mg/kg bw/day", "adi_numeric": 4, "source": "JECFA (1983), EFSA reaffirmed 2009", "year": 2009, "notes": "E122. Southampton Six member." },
+    { "name": "Benzoic acid / Sodium benzoate", "adi_value": "5 mg/kg bw/day", "adi_numeric": 5, "source": "JECFA (1996)", "year": 1996, "notes": "E210-E213" },
+    { "name": "BHA (Butylated hydroxyanisole)", "adi_value": "0.5 mg/kg bw/day", "adi_numeric": 0.5, "source": "JECFA (1989)", "year": 1989, "notes": "E320. IARC 2B." },
+    { "name": "BHT (Butylated hydroxytoluene)", "adi_value": "0.3 mg/kg bw/day", "adi_numeric": 0.3, "source": "JECFA (1996)", "year": 1996, "notes": "E321" },
+    { "name": "Brilliant Blue FCF (Blue 1)", "adi_value": "12.5 mg/kg bw/day", "adi_numeric": 12.5, "source": "JECFA (1969), EFSA reaffirmed 2010", "year": 2010, "notes": "E133" },
+    { "name": "Caramel color (Class III, ammonia)", "adi_value": "200 mg/kg bw/day", "adi_numeric": 200, "source": "JECFA (2000)", "year": 2000, "notes": "E150c" },
+    { "name": "Caramel color (Class IV, sulfite ammonia)", "adi_value": "200 mg/kg bw/day", "adi_numeric": 200, "source": "JECFA (2000)", "year": 2000, "notes": "E150d. Contains 4-MEI." },
+    { "name": "Carrageenan", "adi_value": "75 mg/kg bw/day", "adi_numeric": 75, "source": "JECFA (2001)", "year": 2001, "notes": "E407. EFSA: not safe for infants." },
+    { "name": "Curcumin (Turmeric)", "adi_value": "3 mg/kg bw/day", "adi_numeric": 3, "source": "JECFA (2003), EFSA reaffirmed 2010", "year": 2010, "notes": "E100" },
+    { "name": "Cyclamate", "adi_value": "7 mg/kg bw/day", "adi_numeric": 7, "source": "JECFA (1982), EFSA reaffirmed 2000", "year": 2000, "notes": "E952. Banned in US since 1969." },
+    { "name": "Erythrosine (Red 3)", "adi_value": "0.1 mg/kg bw/day", "adi_numeric": 0.1, "source": "EFSA (2011)", "year": 2011, "notes": "E127. FDA revoked food authorization 2025." },
+    { "name": "Fast Green FCF (Green 3)", "adi_value": "25 mg/kg bw/day", "adi_numeric": 25, "source": "JECFA (1986)", "year": 1986, "notes": "E143" },
+    { "name": "Indigotine (Blue 2)", "adi_value": "5 mg/kg bw/day", "adi_numeric": 5, "source": "JECFA (1974), EFSA reaffirmed 2014", "year": 2014, "notes": "E132" },
+    { "name": "Monosodium glutamate (MSG)", "adi_value": "Not specified (self-limiting)", "adi_numeric": 999, "source": "JECFA (1987)", "year": 1987, "notes": "E621. JECFA removed ADI limit — unpleasant taste self-limits intake. EFSA set group ADI of 30 mg/kg in 2017." },
+    { "name": "Neotame", "adi_value": "2 mg/kg bw/day", "adi_numeric": 2, "source": "JECFA (2003)", "year": 2003, "notes": "E961" },
+    { "name": "Nitrite (sodium nitrite)", "adi_value": "0.07 mg/kg bw/day", "adi_numeric": 0.07, "source": "EFSA (2017)", "year": 2017, "notes": "E250. Very low ADI. IARC 2A (as ingested nitrite with endogenous nitrosation)." },
+    { "name": "Nitrate (sodium nitrate)", "adi_value": "3.7 mg/kg bw/day", "adi_numeric": 3.7, "source": "EFSA (2017)", "year": 2017, "notes": "E251" },
+    { "name": "Ponceau 4R", "adi_value": "4 mg/kg bw/day", "adi_numeric": 4, "source": "JECFA (1983), EFSA reaffirmed 2009", "year": 2009, "notes": "E124. Southampton Six member." },
+    { "name": "Polysorbate 80", "adi_value": "25 mg/kg bw/day", "adi_numeric": 25, "source": "JECFA (1973)", "year": 1973, "notes": "E433" },
+    { "name": "Potassium sorbate / Sorbic acid", "adi_value": "25 mg/kg bw/day", "adi_numeric": 25, "source": "JECFA (1973), EFSA reaffirmed 2015", "year": 2015, "notes": "E200-E203" },
+    { "name": "Propyl gallate", "adi_value": "0.5 mg/kg bw/day", "adi_numeric": 0.5, "source": "EFSA (2014)", "year": 2014, "notes": "E310. IARC 2B (2023)." },
+    { "name": "Quinoline Yellow", "adi_value": "3 mg/kg bw/day", "adi_numeric": 3, "source": "EFSA (2009)", "year": 2009, "notes": "E104. Southampton Six member." },
+    { "name": "Saccharin", "adi_value": "5 mg/kg bw/day", "adi_numeric": 5, "source": "JECFA (1993)", "year": 1993, "notes": "E954. IARC Group 3 (delisted from 2B in 1999)." },
+    { "name": "Steviol glycosides (Stevia)", "adi_value": "4 mg/kg bw/day (as steviol)", "adi_numeric": 4, "source": "JECFA (2008)", "year": 2008, "notes": "E960" },
+    { "name": "Sucralose", "adi_value": "5 mg/kg bw/day", "adi_numeric": 5, "source": "JECFA (1991), EFSA reaffirmed 2016", "year": 2016, "notes": "E955" },
+    { "name": "Sulfur dioxide / Sulfites", "adi_value": "0.7 mg/kg bw/day", "adi_numeric": 0.7, "source": "JECFA (1998)", "year": 1998, "notes": "E220-E228. Very low ADI. Common allergen." },
+    { "name": "Sunset Yellow FCF (Yellow 6)", "adi_value": "4 mg/kg bw/day", "adi_numeric": 4, "source": "JECFA (1982), EFSA reaffirmed 2014", "year": 2014, "notes": "E110. Southampton Six member." },
+    { "name": "Tartrazine (Yellow 5)", "adi_value": "7.5 mg/kg bw/day", "adi_numeric": 7.5, "source": "JECFA (1964), EFSA reaffirmed 2009", "year": 2009, "notes": "E102. Southampton Six member." },
+    { "name": "TBHQ (tert-Butylhydroquinone)", "adi_value": "0.7 mg/kg bw/day", "adi_numeric": 0.7, "source": "JECFA (1998)", "year": 1998, "notes": "E319" },
+    { "name": "Titanium dioxide", "adi_value": "No safe ADI could be established", "adi_numeric": 0, "source": "EFSA (2021)", "year": 2021, "notes": "E171. Banned in EU 2022. Genotoxicity concerns." },
+    { "name": "Xylitol", "adi_value": "Not specified", "adi_numeric": 999, "source": "JECFA (1983)", "year": 1983, "notes": "E967. Laxative effect self-limits intake." }
+  ]
+}

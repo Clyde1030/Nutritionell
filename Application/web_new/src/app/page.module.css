@@ -7,7 +7,8 @@
   position: sticky; top: 0; z-index: 100;
 }
 
-.logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+.logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); transition: color 0.15s; }
+.logo:hover { color: var(--accent); }
 
 .nav { display: flex; gap: 4px; }
 

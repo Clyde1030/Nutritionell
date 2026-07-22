@@ -1,0 +1,110 @@
+.wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+/* Hero */
+.hero { text-align: center; padding: 32px 0 40px; }
+.badge {
+  display: inline-block;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  color: var(--accent); background: var(--accent-glow);
+  padding: 5px 12px; border-radius: 999px; margin-bottom: 20px;
+}
+.title {
+  font-size: 46px; font-weight: 800; letter-spacing: -1.5px;
+  line-height: 1.05; color: var(--text); margin-bottom: 16px;
+}
+.title .accent { color: var(--accent); }
+.subtitle {
+  font-size: 18px; line-height: 1.55; color: var(--sub);
+  max-width: 640px; margin: 0 auto 28px;
+}
+.ctaRow { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.ctaPrimary {
+  background: var(--accent); color: #fff;
+  padding: 12px 24px; border-radius: 10px;
+  font-size: 15px; font-weight: 700; transition: opacity 0.15s;
+}
+.ctaPrimary:hover { opacity: 0.9; }
+.ctaSecondary {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border);
+  padding: 12px 24px; border-radius: 10px;
+  font-size: 15px; font-weight: 700; transition: background 0.15s;
+}
+.ctaSecondary:hover { background: var(--card); }
+
+/* Mission */
+.missionCard {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px 32px; margin: 8px 0 12px;
+  text-align: center;
+}
+.missionLabel {
+  font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 10px;
+}
+.missionText { font-size: 16px; line-height: 1.65; color: var(--text); max-width: 700px; margin: 0 auto; }
+
+/* Value proposition */
+.valueList { display: flex; flex-direction: column; gap: 12px; }
+.valueRow {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.valueTitle { font-size: 15px; font-weight: 700; color: var(--text); }
+.valueText { font-size: 13.5px; line-height: 1.55; color: var(--sub); }
+
+/* Disclaimer */
+.disclaimer {
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35);
+  border-radius: var(--radius); padding: 22px 26px; margin-top: 56px;
+}
+.disclaimerTitle { font-size: 14px; font-weight: 800; color: var(--yellow); margin-bottom: 8px; }
+.disclaimerText { font-size: 13px; line-height: 1.6; color: var(--sub); }
+.disclaimerText strong { color: var(--text); }
+
+/* Section heading */
+.sectionTitle {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+  color: var(--text); text-align: center; margin: 56px 0 8px;
+}
+.sectionSub {
+  font-size: 15px; color: var(--sub); text-align: center; margin-bottom: 28px;
+}
+
+/* Steps */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.step {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px 20px;
+}
+.stepNum {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 999px;
+  background: var(--accent-glow); color: var(--accent);
+  font-weight: 800; font-size: 15px; margin-bottom: 14px;
+}
+.stepTitle { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.stepText { font-size: 14px; line-height: 1.5; color: var(--sub); }
+
+/* Features */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feature {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 20px;
+}
+.featureIcon { font-size: 22px; margin-bottom: 12px; }
+.featureTitle { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.featureText { font-size: 13.5px; line-height: 1.5; color: var(--sub); }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .wrap { padding: 24px 16px 48px; }
+  .title { font-size: 34px; }
+  .subtitle { font-size: 16px; }
+  .steps, .features { grid-template-columns: 1fr; }
+}

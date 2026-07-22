@@ -6,7 +6,7 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts';
 import s from './IngredientAnalyticsTab.module.css';
-import usdaIngredientsData from '@/lib/datasets/usda-ingredients.json';
+import { INGREDIENT_DIRECTORY } from '@/lib/concern-scoring';
 
 // ── Types ──
 
@@ -69,6 +69,7 @@ interface SafetyProfile {
   nutrient_profile?: NutrientProfile;
   total_products_analyzed?: number;
   tier_breakdown?: TierBreakdown;
+  insufficient_data?: boolean;
 }
 
 const QUICK_SEARCHES = [
@@ -82,9 +83,11 @@ const PIE_COLORS = ['#7c6aff', '#22d3a5', '#38bdf8', '#fb923c', '#ff5c7a', '#eab
 
 type CooccurView = 'ingredients' | 'categories' | 'products';
 type DirectorySort = 'alpha' | 'frequency';
-type DirectoryFilter = 'all' | 'common' | 'additives' | 'dyes' | 'sweeteners' | 'preservatives' | 'oils';
+type DirectoryFilter = 'all' | 'flagged' | 'additives' | 'dyes' | 'sweeteners' | 'preservatives' | 'oils';
 
-const USDA_INGREDIENTS: { name: string; frequency: number; prevalence_pct: number }[] = usdaIngredientsData.ingredients;
+const DIRECTORY = INGREDIENT_DIRECTORY;
+const CONCERN_COLOR: Record<string, string> = { high: '#ef4444', medium: '#eab308', low: '#22c55e', unknown: '#6b7280' };
+const CONCERN_RANK: Record<string, number> = { high: 3, medium: 2, low: 1, unknown: 0 };
 
 const FILTER_KEYWORDS: Record<DirectoryFilter, string[]> = {
   all: [],
@@ -110,20 +113,20 @@ export default function IngredientAnalyticsTab() {
   const DIR_PAGE_SIZE = 10;
 
   const filteredIngredients = useMemo(() => {
-    let list = USDA_INGREDIENTS;
-    if (dirFilter === 'common') {
-      list = list.filter(i => i.prevalence_pct >= 1);
+    let list = DIRECTORY;
+    if (dirFilter === 'flagged') {
+      list = list.filter(i => i.concern_level === 'medium' || i.concern_level === 'high');
     } else if (dirFilter !== 'all') {
       const keywords = FILTER_KEYWORDS[dirFilter];
-      list = list.filter(i => keywords.some(k => i.name.includes(k)));
+      list = list.filter(i => keywords.some(k => i.name.toLowerCase().includes(k)));
     }
     if (dirSearch) {
       const q = dirSearch.toLowerCase();
-      list = list.filter(i => i.name.includes(q));
+      list = list.filter(i => i.name.toLowerCase().includes(q));
     }
-    if (dirSort === 'alpha') {
-      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    }
+    list = [...list];
+    if (dirSort === 'alpha') list.sort((a, b) => a.name.localeCompare(b.name));
+    else list.sort((a, b) => CONCERN_RANK[b.concern_level] - CONCERN_RANK[a.concern_level] || a.name.localeCompare(b.name));
     return list;
   }, [dirFilter, dirSort, dirSearch]);
 
@@ -214,17 +217,26 @@ export default function IngredientAnalyticsTab() {
             <span className={s.safetyName}>{result.name}</span>
             <span style={{ fontSize: 12, color: 'var(--sub)', background: 'var(--surface)', padding: '4px 10px', borderRadius: 20 }}>{result.category}</span>
           </div>
-          <p style={{ fontSize: 13, color: 'var(--sub)', marginBottom: 12 }}>Composite Concern Score</p>
-          <div className={s.gaugeWrap}>
-            <div className={s.gaugeTrack}>
-              <div className={s.gaugeFill} style={{ width: `${result.risk_score}%`, background: riskColor(result.risk_score) }} />
+          {result.insufficient_data ? (
+            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4 }}>⚠️ Not enough data to score</p>
+              <p style={{ fontSize: 12.5, color: 'var(--sub)', lineHeight: 1.5 }}>
+                This ingredient isn&apos;t in our authoritative datasets (IARC, EFSA/FDA, CSPI, NOVA, ADI), so we can&apos;t give it a reliable concern score. A missing record is <strong>not</strong> the same as &ldquo;safe.&rdquo;
+              </p>
             </div>
-            <span className={s.gaugeLabel} style={{ color: riskColor(result.risk_score) }}>{result.risk_score}/100</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: riskColor(result.risk_score) }}>{result.risk_label}</span>
-            {tb?.vetoed && <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: '#ef4444', padding: '3px 10px', borderRadius: 12 }}>VETO — Score Locked at 100</span>}
-          </div>
+          ) : (<>
+            <p style={{ fontSize: 13, color: 'var(--sub)', marginBottom: 12 }}>Composite Concern Score</p>
+            <div className={s.gaugeWrap}>
+              <div className={s.gaugeTrack}>
+                <div className={s.gaugeFill} style={{ width: `${result.risk_score}%`, background: riskColor(result.risk_score) }} />
+              </div>
+              <span className={s.gaugeLabel} style={{ color: riskColor(result.risk_score) }}>{result.risk_score}/100</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: riskColor(result.risk_score) }}>{result.risk_label}</span>
+              {tb?.vetoed && <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: '#ef4444', padding: '3px 10px', borderRadius: 12 }}>VETO — Score Locked at 100</span>}
+            </div>
+          </>)}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
             <div style={{ background: 'var(--surface)', borderRadius: 8, padding: 12 }}>
               <p style={{ fontSize: 11, color: 'var(--sub)', marginBottom: 4 }}>FDA Status</p>
@@ -503,9 +515,9 @@ export default function IngredientAnalyticsTab() {
           </ul>
         </div>
 
-        {/* ── AI Summary ── */}
+        {/* ── Safety Summary ── */}
         <div className={s.aiCard}>
-          <p className={s.aiTitle}>AI Safety Summary</p>
+          <p className={s.aiTitle}>Safety Summary</p>
           <p className={s.aiText}>{result.ai_summary}</p>
         </div>
       </div>
@@ -540,7 +552,7 @@ export default function IngredientAnalyticsTab() {
           <div>
             <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Ingredient Directory</p>
             <p style={{ fontSize: 11, color: 'var(--sub)' }}>
-              {USDA_INGREDIENTS.length} ingredients from USDA FoodData Central — click any to analyze
+              {DIRECTORY.length} ingredients with authoritative safety data (IARC, EFSA/FDA, CSPI, NOVA, ADI) — click any to analyze
             </p>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -549,7 +561,7 @@ export default function IngredientAnalyticsTab() {
               <button key={s} onClick={() => { setDirSort(s); setDirPage(0); }} style={{
                 padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
                 background: dirSort === s ? 'var(--accent)' : 'var(--surface)', color: dirSort === s ? '#fff' : 'var(--sub)',
-              }}>{s === 'frequency' ? 'Most Common' : 'A → Z'}</button>
+              }}>{s === 'frequency' ? 'By Concern' : 'A → Z'}</button>
             ))}
           </div>
         </div>
@@ -557,7 +569,7 @@ export default function IngredientAnalyticsTab() {
         {/* Filter chips */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           {([
-            ['all', 'All'], ['common', 'Common (≥1%)'], ['additives', 'Additives'],
+            ['all', 'All'], ['flagged', 'Flagged'], ['additives', 'Additives'],
             ['dyes', 'Dyes & Colors'], ['sweeteners', 'Sweeteners'], ['preservatives', 'Preservatives'], ['oils', 'Fats & Oils'],
           ] as [DirectoryFilter, string][]).map(([key, label]) => (
             <button key={key} onClick={() => { setDirFilter(key); setDirPage(0); }} style={{
@@ -589,32 +601,27 @@ export default function IngredientAnalyticsTab() {
 
         {/* Ingredient grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
-          {pagedIngredients.map((ing, i) => {
-            const barWidth = Math.max(4, Math.min(100, ing.prevalence_pct * 8));
-            return (
-              <button key={i} onClick={() => search(ing.name)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-                borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)',
-                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-glow)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ing.name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <div style={{ width: 60, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ width: `${barWidth}%`, height: '100%', background: ing.prevalence_pct >= 5 ? '#7c6aff' : ing.prevalence_pct >= 1 ? '#38bdf8' : 'var(--sub)', borderRadius: 2 }} />
-                    </div>
-                    <span style={{ fontSize: 10, color: 'var(--sub)' }}>{ing.prevalence_pct}%</span>
-                  </div>
-                </div>
-                <span style={{ fontSize: 14, color: 'var(--sub)', flexShrink: 0 }}>→</span>
-              </button>
-            );
-          })}
+          {pagedIngredients.map((ing, i) => (
+            <button key={i} onClick={() => search(ing.name)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)',
+              cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-glow)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: CONCERN_COLOR[ing.concern_level], flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ing.name}
+                </p>
+                <p style={{ fontSize: 10, color: 'var(--sub)', marginTop: 2 }}>
+                  {ing.sources.length ? ing.sources.join(' · ') : 'limited data'}
+                </p>
+              </div>
+              <span style={{ fontSize: 14, color: 'var(--sub)', flexShrink: 0 }}>→</span>
+            </button>
+          ))}
         </div>
 
         {/* Pagination */}
@@ -635,8 +642,8 @@ export default function IngredientAnalyticsTab() {
         )}
 
         <p style={{ fontSize: 10, color: 'var(--sub)', marginTop: 12, textAlign: 'center' }}>
-          Source: USDA FoodData Central — extracted from {usdaIngredientsData._meta.sample_size.toLocaleString()} branded products.
-          Prevalence = % of sampled products containing this ingredient.
+          Sources: IARC Monographs (WHO), EFSA/FDA regulatory records, EU &ldquo;Southampton Six&rdquo;,
+          JECFA/EFSA ADI limits, CSPI Chemical Cuisine, and the NOVA classification. Dot colour = composite concern level.
         </p>
       </div>
     </div>

@@ -32,6 +32,16 @@ SEX_OPTIONS: List[Dict[str, str]] = [
     {"key": "Male", "description": "Used to tailor protein, iron, and calorie guidance to male-specific nutritional needs."},
 ]
 
+# ── Age group options ────────────────────────────────────────────────────────
+
+AGE_GROUP_OPTIONS: List[Dict[str, str]] = [
+    {"key": "Under 18", "description": "Nutrient needs for growth and development; more conservative flags on stimulants, additives, and restrictive eating patterns."},
+    {"key": "18-29", "description": "Peak metabolic years; guidance favours building healthy long-term habits."},
+    {"key": "30-49", "description": "Guidance accounts for gradually shifting metabolic and cardiovascular baselines."},
+    {"key": "50-64", "description": "Increased attention to sodium, bone health (calcium/vitamin D), and heart-healthy fats."},
+    {"key": "65+", "description": "Increased attention to protein adequacy, calcium/vitamin D, sodium, and easily-digestible nutrient density."},
+]
+
 # ── Dietary philosophies with descriptions ────────────────────────────────────
 
 DIETARY_PHILOSOPHIES: List[Dict[str, Any]] = [
@@ -66,7 +76,7 @@ DIETARY_PHILOSOPHIES: List[Dict[str, Any]] = [
     {
         "key": "Keto",
         "summary": "Very low carb, high fat to maintain ketosis.",
-        "description": "Restricts net carbohydrates to under 20–50g/day to induce ketosis. Avoids grains, sugar, most fruit, starchy vegetables, and legumes. Prioritises fats (avocado, olive oil, butter, meat) and moderate protein. Scores 'Avoid' for >10g net carbs per serving.",
+        "description": "Restricts net carbohydrates to under 20–50g/day to induce ketosis. Avoids grains, sugar, most fruit, starchy vegetables, and legumes. Prioritises fats (avocado, olive oil, butter, meat) and moderate protein. Scores 'Doesn't Fit' for >10g net carbs per serving.",
         "avoid_categories": ["Grains", "Sugar", "Starchy vegetables", "Most fruits", "Legumes"],
         "favour_categories": ["Healthy fats", "Meat & fish", "Low-carb vegetables", "Nuts & seeds"],
     },
@@ -213,6 +223,7 @@ PROCESSED_FOOD_TOLERANCE_LABELS = {
 class UserProfileCreate(BaseModel):
     name: Optional[str] = Field(None, max_length=120)
     sex: Optional[str] = Field(None, max_length=20)
+    age_group: Optional[str] = Field(None, max_length=20)
     allergies_and_conditions: List[str] = Field(default_factory=list)
     free_text_goals: Optional[str] = Field(None, max_length=2000)
     dietary_philosophy: Optional[str] = Field(None)
@@ -225,6 +236,7 @@ class UserProfileCreate(BaseModel):
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=120)
     sex: Optional[str] = Field(None, max_length=20)
+    age_group: Optional[str] = Field(None, max_length=20)
     allergies_and_conditions: Optional[List[str]] = None
     free_text_goals: Optional[str] = Field(None, max_length=2000)
     dietary_philosophy: Optional[str] = None
@@ -238,6 +250,7 @@ class UserProfileResponse(BaseModel):
     id: UUID
     name: Optional[str]
     sex: Optional[str]
+    age_group: Optional[str]
     allergies_and_conditions: List[str]
     free_text_goals: Optional[str]
     dietary_philosophy: Optional[str]
@@ -253,6 +266,7 @@ class UserProfileResponse(BaseModel):
 
 class ProfileOptionsResponse(BaseModel):
     sex_options: List[Dict[str, str]] = SEX_OPTIONS
+    age_group_options: List[Dict[str, str]] = AGE_GROUP_OPTIONS
     allergies_and_conditions: List[Dict[str, str]] = ALLERGIES_AND_CONDITIONS
     dietary_philosophies: List[Dict[str, Any]] = DIETARY_PHILOSOPHIES
     ingredient_categories: List[Dict[str, Any]] = INGREDIENT_CATEGORIES

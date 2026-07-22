@@ -1,5 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { computeConcernScore } from '@/lib/concern-scoring';
+import { computeConcernScore, getFindings, type Findings } from '@/lib/concern-scoring';
+
+/** Build data-backed facts + summary from the authoritative datasets (no AI, fully sourced). */
+function buildSourcedProfile(name: string, f: Findings, insufficient: boolean) {
+  const facts: string[] = [];
+  if (f.banned) facts.push(`Banned or restricted: ${f.banned.jurisdiction} — ${f.banned.action}${f.banned.year ? ` (${f.banned.year})` : ''}. (EFSA/FDA regulatory records)`);
+  if (f.iarc_group) facts.push(`IARC classifies this as Group ${f.iarc_group} — ${f.iarc_label}. (IARC Monographs, WHO)`);
+  if (f.southampton_six) facts.push(`On the EU "Southampton Six": products must carry a warning that it "may have an adverse effect on activity and attention in children." (EU Regulation 1333/2008; McCann et al., The Lancet, 2007)`);
+  if (f.adi) facts.push(`Acceptable Daily Intake: ${f.adi.value}. Source: ${f.adi.source}.`);
+  if (f.cspi_rating) facts.push(`CSPI "Chemical Cuisine" rating: "${f.cspi_rating}"${f.cspi_notes ? ` — ${f.cspi_notes}` : ''}. (Center for Science in the Public Interest)`);
+  if (f.nova_level) facts.push(`NOVA processing group ${f.nova_level}: ${f.nova_label}. (Monteiro et al., Public Health Nutrition, 2019)`);
+  if (facts.length === 0) facts.push('No records found in our authoritative datasets (IARC, EFSA/FDA, CSPI, NOVA, ADI). There is not enough data to assess this ingredient.');
+
+  const fda_status = f.banned ? `Banned/restricted (${f.banned.jurisdiction})`
+    : f.adi ? 'Regulated with an ADI limit'
+    : insufficient ? 'No record in our datasets' : 'No specific regulatory flag found';
+  const daily_limit = f.adi ? f.adi.value : 'Not established in our datasets';
+
+  const ai_summary = insufficient
+    ? `We don't yet have authoritative safety data for "${name}" in our datasets (IARC, EFSA/FDA, CSPI, NOVA, and JECFA/EFSA ADI). We therefore cannot score it reliably — treat any score as "insufficient data," not "safe." Consider checking USDA FoodData Central and current peer-reviewed literature.`
+    : `${facts.join(' ')}\n\nThis summary is compiled directly from the cited authoritative datasets — it is not AI-generated. Scoring weights strict-science regulatory flags (50%), NOVA processing level (30%), and CSPI consumer rating (20%).`;
+
+  return { facts, fda_status, daily_limit, ai_summary };
+}
 
 const USDA_API_KEY = process.env.USDA_API_KEY;
 const USDA_SEARCH_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
@@ -102,24 +125,6 @@ const SAFETY_PROFILES: Record<string, {
     ai_summary: 'Sodium nitrite serves a dual purpose in cured meats: it prevents deadly botulism and creates the characteristic pink color and cured flavor. However, its safety profile is complicated by nitrosamine formation.\n\nWhen nitrite-cured meats are cooked at high temperatures (grilling, frying), nitrites react with amino acids to form N-nitroso compounds (nitrosamines), which are potent carcinogens. This reaction is the primary mechanistic basis for the IARC Group 1 classification of processed meats.\n\nThe context matters: nitrates in vegetables (which convert to nitrites in the body) are generally protective because they arrive with vitamin C and polyphenols that inhibit nitrosamine formation. Processed meats lack these protective co-factors.\n\nThe epidemiological evidence is substantial: a 2019 meta-analysis in the International Journal of Cancer found that each 50g/day increase in processed meat consumption was associated with an 18% increased risk of colorectal cancer. Reducing processed meat intake is one of the more evidence-backed dietary cancer prevention strategies.',
   },
 };
-
-function getDefaultSafetyProfile(ingredient: string) {
-  return {
-    name: ingredient,
-    risk_score: 45,
-    risk_label: 'Moderate Concern',
-    category: 'Food Additive',
-    fda_status: 'GRAS — Generally Recognized as Safe',
-    daily_limit: 'Not specifically established',
-    facts: [
-      `${ingredient} is found in processed foods as an additive.`,
-      'Regulatory status varies between FDA (US), EFSA (EU), and other global agencies.',
-      'Long-term safety data may be limited — many additives were approved decades ago under older testing standards.',
-      'Individual sensitivity varies; some people report adverse reactions even to GRAS-listed substances.',
-    ],
-    ai_summary: `${ingredient} is a food additive found in various processed products. While it holds GRAS (Generally Recognized as Safe) status from the FDA, this classification was established under historical testing protocols that may not reflect current toxicological standards.\n\nAs with many food additives, the safety profile depends on dosage, frequency of exposure, and individual susceptibility. Consumers with specific health conditions (e.g., IBS, autoimmune disorders, ADHD) may want to exercise additional caution.\n\nFor a complete analysis, consider consulting the USDA FoodData Central database and recent peer-reviewed literature for the most current safety assessments.`,
-  };
-}
 
 /**
  * Parse a raw USDA ingredients string into normalized individual ingredient tokens.
@@ -345,12 +350,27 @@ export async function POST(req: NextRequest) {
     }
 
     const key = ingredient.toLowerCase().trim();
-    const safety = SAFETY_PROFILES[key] ?? getDefaultSafetyProfile(ingredient.trim());
 
-    // Compute 3-tier concern score
+    // Compute 3-tier concern score from the authoritative datasets
     const tierBreakdown = computeConcernScore(ingredient);
+    const findings = getFindings(ingredient);
 
-    // Override the safety profile's risk score/label with the algorithmic score
+    // Use a hand-curated deep-dive when we have one; otherwise build a fully
+    // sourced profile from the datasets (facts + summary cite their authority).
+    const curated = SAFETY_PROFILES[key];
+    let safety: any;
+    if (curated && !tierBreakdown.insufficient_data) {
+      safety = { ...curated };
+    } else {
+      const sourced = buildSourcedProfile(ingredient.trim(), findings, tierBreakdown.insufficient_data);
+      safety = {
+        name: ingredient.trim(),
+        category: findings.cspi_rating || findings.nova_level ? 'Food Additive' : 'Food Ingredient',
+        ...sourced,
+      };
+    }
+
+    // The algorithmic score is authoritative for risk_score/label.
     safety.risk_score = tierBreakdown.final_score;
     safety.risk_label = tierBreakdown.risk_label;
 
@@ -369,6 +389,7 @@ export async function POST(req: NextRequest) {
       total_products_analyzed: analytics.total_products_analyzed,
       data_source: dataSource,
       tier_breakdown: tierBreakdown,
+      insufficient_data: tierBreakdown.insufficient_data,
     });
   } catch (err: any) {
     console.error('Ingredient intel error:', err.message);

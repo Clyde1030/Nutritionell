@@ -7,6 +7,7 @@ export const ENDPOINTS = {
   getProfile: (id: string) => `${API_BASE_URL}/api/profile/${id}`,
   updateProfile: (id: string) => `${API_BASE_URL}/api/profile/${id}`,
   analyze: `${API_BASE_URL}/api/analyze`,
+  analyzeStream: `${API_BASE_URL}/api/analyze/stream`,
   analyzeMock: `${API_BASE_URL}/api/analyze/mock`,
   nutritionPlan: `${API_BASE_URL}/api/profile/nutrition-plan`,
 } as const;

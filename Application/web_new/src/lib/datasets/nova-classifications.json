@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "source": "NOVA food classification system — Monteiro CA et al., Public Health Nutrition, 2019",
+    "url": "https://doi.org/10.1017/S1368980017000234",
+    "last_updated": "2026-06-21",
+    "how_to_update": "Add entries to the appropriate nova_X array. NOVA classifies FOODS, not individual additives. The ingredient-level mappings below are derived from the NOVA definitions: if an ingredient only exists via industrial processing (Group 4), or is a whole food (Group 1), etc.",
+    "important": "NOVA was designed for classifying whole food products, not individual additives. These ingredient-level mappings are interpretive — the USDA FoodData Central database does NOT include NOVA scores per ingredient. When a NOVA score is unavailable for a searched ingredient, the UI should display 'NOVA classification not available for this ingredient' rather than guessing."
+  },
+  "nova_1": {
+    "label": "Unprocessed or minimally processed foods",
+    "definition": "Parts of plants or animals with no or minimal processing (drying, grinding, pasteurization, fermentation, freezing). No added substances.",
+    "ingredients": [
+      "water", "salt", "sugar", "honey", "maple syrup",
+      "olive oil", "coconut oil", "butter", "lard", "tallow",
+      "vinegar", "lemon juice",
+      "citric acid", "lactic acid", "ascorbic acid", "acetic acid",
+      "pectin", "gelatin", "yeast", "baking soda", "cream of tartar",
+      "black pepper", "cinnamon", "turmeric", "garlic powder", "onion powder",
+      "cocoa powder", "vanilla extract",
+      "tea leaves", "coffee beans"
+    ]
+  },
+  "nova_2": {
+    "label": "Processed culinary ingredients",
+    "definition": "Substances extracted and purified from Group 1 foods via pressing, refining, grinding, or milling. Used in kitchens to prepare Group 1 foods.",
+    "ingredients": [
+      "corn starch", "tapioca starch", "potato starch", "arrowroot starch",
+      "wheat flour", "enriched flour", "rice flour", "oat flour", "almond flour",
+      "cocoa butter",
+      "palm oil", "palm kernel oil", "canola oil", "soybean oil",
+      "sunflower oil", "corn oil", "safflower oil", "peanut oil", "sesame oil",
+      "molasses", "agave syrup",
+      "cream", "milk powder"
+    ]
+  },
+  "nova_3": {
+    "label": "Processed foods",
+    "definition": "Foods made by adding Group 2 ingredients to Group 1 foods, using preservation methods (canning, bottling, fermentation). Typically 2-3 ingredients.",
+    "ingredients": [
+      "sodium chloride", "calcium chloride", "calcium carbonate",
+      "sodium citrate", "calcium citrate", "potassium citrate",
+      "guar gum", "xanthan gum", "locust bean gum", "agar", "tara gum", "gellan gum",
+      "carrageenan",
+      "soy lecithin", "sunflower lecithin",
+      "annatto", "beta carotene", "caramel color", "paprika extract",
+      "tocopherols", "mixed tocopherols", "rosemary extract",
+      "natural flavors", "natural flavor",
+      "monk fruit extract", "stevia", "steviol glycosides",
+      "soy sauce", "miso"
+    ]
+  },
+  "nova_4": {
+    "label": "Ultra-processed food and drink products",
+    "definition": "Industrial formulations of substances derived from foods, with little if any intact food. Contain additives whose purpose is to imitate sensory qualities of Group 1 foods or disguise undesirable qualities of the final product.",
+    "ingredients": [
+      "high fructose corn syrup", "hfcs", "corn syrup solids", "glucose syrup", "glucose-fructose syrup",
+      "maltodextrin", "dextrose", "isoglucose",
+      "modified food starch", "modified corn starch", "modified tapioca starch",
+      "hydrogenated oil", "partially hydrogenated oil", "interesterified oil", "fractionated oil",
+      "protein isolate", "soy protein isolate", "whey protein isolate", "pea protein isolate", "casein isolate",
+      "hydrolyzed protein", "hydrolyzed vegetable protein", "hydrolyzed soy protein",
+      "autolyzed yeast extract", "yeast extract",
+      "monosodium glutamate", "msg",
+      "artificial flavors", "artificial flavor",
+      "artificial colors", "artificial color",
+      "red 40", "red 3", "yellow 5", "yellow 6", "blue 1", "blue 2", "green 3",
+      "allura red", "tartrazine", "sunset yellow", "brilliant blue", "indigotine", "fast green",
+      "carmoisine", "ponceau 4r", "quinoline yellow",
+      "aspartame", "sucralose", "acesulfame potassium", "saccharin", "neotame", "advantame",
+      "sodium benzoate", "potassium benzoate", "calcium benzoate",
+      "sodium nitrite", "sodium nitrate", "potassium nitrite", "potassium nitrate",
+      "bha", "bht", "tbhq", "propyl gallate",
+      "polysorbate 80", "polysorbate 60", "polysorbate 20",
+      "mono and diglycerides", "mono & diglycerides",
+      "sodium stearoyl lactylate", "calcium stearoyl lactylate",
+      "datem", "diacetyl tartaric acid esters",
+      "cellulose gum", "cellulose gel", "microcrystalline cellulose", "carboxymethylcellulose",
+      "titanium dioxide",
+      "potassium bromate", "azodicarbonamide",
+      "sodium phosphate", "sodium tripolyphosphate", "sodium hexametaphosphate",
+      "calcium disodium edta", "disodium edta",
+      "dimethylpolysiloxane",
+      "sodium erythorbate",
+      "brominated vegetable oil",
+      "propylene glycol", "propylene glycol alginate",
+      "sodium aluminum phosphate", "sodium acid pyrophosphate",
+      "carnauba wax", "shellac",
+      "tertiary butylhydroquinone"
+    ]
+  }
+}

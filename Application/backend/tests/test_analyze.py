@@ -24,21 +24,27 @@ MOCK_SCORING_RESPONSE = json.dumps([
     {
         "brand": "Kellogg's",
         "product_name": "Frosted Flakes",
-        "scoring": "Avoid",
+        "scoring": "Doesn't Fit",
         "reasoning": "High added sugar conflicts with your low-sugar goal.",
-        "calories": 150.0,
-        "serving_size": "1 cup (37g)",
-        "total_fat_g": 0.5,
-        "saturated_fat_g": 0.0,
-        "trans_fat_g": 0.0,
-        "cholesterol_mg": 0.0,
-        "sodium_mg": 190.0,
-        "total_carbohydrate_g": 37.0,
-        "dietary_fiber_g": 1.0,
-        "total_sugars_g": 14.0,
-        "added_sugars_g": 12.0,
-        "protein_g": 2.0,
+        "score_breakdown": {
+            "hard_exclusion": True,
+            "hard_exclusion_reasons": ["Contains high-fructose corn syrup, an avoided ingredient"],
+        },
         "flagged_ingredients": ["high-fructose corn syrup"],
+        "nutrition": {
+            "calories": 150.0,
+            "serving_size": "1 cup (37g)",
+            "total_fat_g": 0.5,
+            "saturated_fat_g": 0.0,
+            "trans_fat_g": 0.0,
+            "cholesterol_mg": 0.0,
+            "sodium_mg": 190.0,
+            "total_carbohydrate_g": 37.0,
+            "dietary_fiber_g": 1.0,
+            "total_sugars_g": 14.0,
+            "added_sugars_g": 12.0,
+            "protein_g": 2.0,
+        },
     }
 ])
 
@@ -63,18 +69,24 @@ MOCK_SCORING_RESPONSE_2 = json.dumps([
     {
         "brand": "Kellogg's",
         "product_name": "Frosted Flakes",
-        "scoring": "Avoid",
+        "scoring": "Doesn't Fit",
         "reasoning": "High added sugar conflicts with your low-sugar goal.",
-        "calories": 150.0,
+        "score_breakdown": {"hard_exclusion": True, "hard_exclusion_reasons": ["Contains sugar, an avoided ingredient"]},
         "flagged_ingredients": ["sugar"],
+        "nutrition": {"calories": 150.0},
     },
     {
         "brand": "Quaker",
         "product_name": "Oats",
-        "scoring": "Great",
+        "scoring": "Great Fit",
         "reasoning": "Whole-grain oats align with your goals.",
-        "calories": 150.0,
+        "score_breakdown": {
+            "hard_exclusion": False,
+            "philosophy_score": 2, "goal_score": 2, "ingredient_score": 2,
+            "processing_score": 1, "nutrition_score": 2, "total_score": 9,
+        },
         "flagged_ingredients": [],
+        "nutrition": {"calories": 150.0},
     },
 ])
 
@@ -203,7 +215,7 @@ async def test_analyze_schema_output_structure(client):
 
     assert r.status_code == 200
     for product in r.json()["products"]:
-        assert product["scoring"] in ("Great", "OK", "Avoid", "Unidentified")
+        assert product["scoring"] in ("Great Fit", "Just OK Fit", "Neutral Fit", "Doesn't Fit", "Unidentified")
         assert "bounding_box" in product
         assert len(product["bounding_box"]) == 4
         assert "nutritional_facts" in product

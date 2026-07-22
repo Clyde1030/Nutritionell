@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ENDPOINTS } from '@/lib/api';
 import { getProfileId } from '@/lib/storage';
 import type { NutritionPlanResponse, NutritionPlanStep } from '@/lib/types';
+import MyPlanTransparency from './MyPlanTransparency';
 import s from './PlanTab.module.css';
 
 const PRIORITY_COLOR = { high: 'var(--red)', medium: 'var(--yellow)', low: 'var(--green)' };
@@ -11,6 +12,7 @@ const PRIORITY_LABEL = { high: 'High priority', medium: 'Medium', low: 'Lower pr
 export default function PlanTab() {
   const [plan, setPlan] = useState<NutritionPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showTransparency, setShowTransparency] = useState(false);
 
   const generate = async () => {
     const profileId = getProfileId();
@@ -52,7 +54,6 @@ export default function PlanTab() {
             {[
               'Complete your Profile (Profile tab)',
               'Set your Health Goals (Goals tab)',
-              'Add GEMINI_API_KEY to Application/backend/.env for real AI',
             ].map(t => (
               <div key={t} className={s.reqRow}>
                 <span className={s.reqIcon}>✓</span>
@@ -61,7 +62,11 @@ export default function PlanTab() {
             ))}
           </div>
           <button className={s.generateBtn} onClick={generate}>Generate My Plan</button>
+          <button className={s.transparencyBtn} onClick={() => setShowTransparency(true)}>
+            🔎  Transparency Overview — see exactly what we send before you generate
+          </button>
         </div>
+        {showTransparency && <MyPlanTransparency onClose={() => setShowTransparency(false)} />}
       </div>
     );
   }
@@ -71,7 +76,10 @@ export default function PlanTab() {
       <div className={s.container}>
         <div className={s.planHeader}>
           <h1 className={s.title}>My Plan</h1>
-          <button className={s.regenBtn} onClick={generate}>Regenerate</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className={s.regenBtn} onClick={() => setShowTransparency(true)}>🔎 Transparency</button>
+            <button className={s.regenBtn} onClick={generate}>Regenerate</button>
+          </div>
         </div>
 
         <div className={s.summaryCard}><p className={s.summaryText}>{plan.summary}</p></div>
@@ -128,6 +136,7 @@ export default function PlanTab() {
           </Section>
         )}
       </div>
+      {showTransparency && <MyPlanTransparency onClose={() => setShowTransparency(false)} />}
     </div>
   );
 }
