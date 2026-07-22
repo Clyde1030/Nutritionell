@@ -161,6 +161,13 @@ curl -X POST "$ALB/api/analyze" \
 
 ### Building and deploying a new image
 
+The whole flow below (commit, build, push to ECR, redeploy, smoke test) is wrapped in
+[scripts/deploy_backend.sh](scripts/deploy_backend.sh):
+
+```bash
+bash scripts/deploy_backend.sh "commit message"
+```
+
 Fargate defaults to the `X86_64` runtime platform. If you're building on Apple
 Silicon, `docker build` produces an `arm64` image by default — pass `--platform
 linux/amd64` explicitly or the task will fail to start after deploy:
