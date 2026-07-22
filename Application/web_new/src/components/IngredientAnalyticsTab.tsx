@@ -91,7 +91,7 @@ const CONCERN_RANK: Record<string, number> = { high: 3, medium: 2, low: 1, unkno
 
 const FILTER_KEYWORDS: Record<DirectoryFilter, string[]> = {
   all: [],
-  common: [],
+  flagged: [],
   additives: ['gum', 'lecithin', 'starch', 'cellulose', 'polysorbate', 'monoglyceride', 'diglyceride', 'carrageenan', 'maltodextrin', 'dextrose', 'edta', 'phosphate', 'siloxane'],
   dyes: ['red ', 'yellow ', 'blue ', 'green ', 'caramel color', 'annatto', 'titanium dioxide', 'color'],
   sweeteners: ['sugar', 'syrup', 'aspartame', 'sucralose', 'saccharin', 'stevia', 'monk fruit', 'erythritol', 'xylitol', 'sorbitol', 'acesulfame', 'neotame', 'honey', 'fructose', 'dextrose', 'maltose'],
