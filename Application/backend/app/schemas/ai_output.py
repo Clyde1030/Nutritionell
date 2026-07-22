@@ -8,10 +8,29 @@ from pydantic import BaseModel, Field
 
 
 class ScoreEnum(str, Enum):
-    GREAT = "Great"
-    OK = "OK"
-    AVOID = "Avoid"
+    GREAT = "Great Fit"
+    JUST_OK = "Just OK Fit"
+    NEUTRAL = "Neutral Fit"
+    DOESNT_FIT = "Doesn't Fit"
     UNIDENTIFIED = "Unidentified"
+
+
+class ScoreBreakdown(BaseModel):
+    """Deterministic per-dimension scoring — see gemini_service._scoring_pass.
+
+    hard_exclusion short-circuits scoring to "Doesn't Fit" (allergy, avoided
+    ingredient, philosophy conflict, processing-tolerance breach, or a
+    conflicting medical condition); the five dimension scores + total_score
+    are only meaningful when hard_exclusion is false.
+    """
+    hard_exclusion: bool = False
+    hard_exclusion_reasons: List[str] = Field(default_factory=list)
+    philosophy_score: Optional[float] = None
+    goal_score: Optional[float] = None
+    ingredient_score: Optional[float] = None
+    processing_score: Optional[float] = None
+    nutrition_score: Optional[float] = None
+    total_score: Optional[float] = None
 
 
 class NutritionalFacts(BaseModel):
@@ -39,8 +58,11 @@ class NutritionalFacts(BaseModel):
 class ProductItem(BaseModel):
     brand: str
     product_name: str
+    variant: Optional[str] = None
+    canonical_search_name: Optional[str] = None
     nutritional_facts: NutritionalFacts
     scoring: ScoreEnum
+    score_breakdown: Optional[ScoreBreakdown] = None
     # Full reasoning referencing every relevant profile factor
     reasoning: str = Field(max_length=600)
     # Specific reasons broken out by profile factor
@@ -52,6 +74,11 @@ class ProductItem(BaseModel):
     data_source: Optional[str] = None
     processing_level: Optional[int] = Field(
         None, description="NOVA score 1-4: 1=unprocessed, 4=ultra-processed"
+    )
+    allergens: List[str] = Field(default_factory=list)
+    dietary_tags: List[str] = Field(default_factory=list)
+    crop_image: Optional[str] = Field(
+        None, description="data: URI (base64 JPEG) of the exact crop this product was identified from"
     )
 
 

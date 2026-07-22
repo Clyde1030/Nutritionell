@@ -1,0 +1,110 @@
+{
+  "_meta": {
+    "source": "IARC Monographs on the Identification of Carcinogenic Hazards to Humans",
+    "url": "https://monographs.iarc.who.int/list-of-classifications",
+    "last_updated": "2026-06-21",
+    "notes": "Food-relevant agents only. Full IARC list contains 1000+ agents across all categories. Update by adding entries to the appropriate group array.",
+    "how_to_update": "Add new entries as {name, volume, year, notes?} objects. Check https://monographs.iarc.who.int/list-of-classifications for the latest list."
+  },
+  "group_1": {
+    "label": "Carcinogenic to humans",
+    "agents": [
+      { "name": "Acetaldehyde associated with consumption of alcoholic beverages", "volume": "100E", "year": 2012 },
+      { "name": "Aflatoxins (naturally occurring mixtures)", "volume": 100, "year": 2012, "notes": "Mycotoxins contaminating grains, nuts, and dried fruits" },
+      { "name": "Alcoholic beverages", "volume": 100, "year": 2012 },
+      { "name": "Areca nut", "volume": 85, "year": 2004 },
+      { "name": "Betel quid with tobacco", "volume": 85, "year": 2004 },
+      { "name": "Betel quid without tobacco", "volume": 85, "year": 2004 },
+      { "name": "Benzo[a]pyrene", "volume": 100, "year": 2012, "notes": "Found in smoked and charred foods" },
+      { "name": "Ethanol in alcoholic beverages", "volume": 100, "year": 2012 },
+      { "name": "Formaldehyde", "volume": 100, "year": 2012, "notes": "Can be found as contaminant in food" },
+      { "name": "Helicobacter pylori infection", "volume": 100, "year": 2012, "notes": "Foodborne pathogen" },
+      { "name": "Opisthorchis viverrini infection", "volume": 100, "year": 2012, "notes": "Liver fluke from raw fish" },
+      { "name": "Clonorchis sinensis infection", "volume": 100, "year": 2012, "notes": "Liver fluke from raw fish" },
+      { "name": "Processed meat (consumption of)", "volume": 114, "year": 2015 },
+      { "name": "Salted fish, Chinese-style", "volume": 100, "year": 2012 }
+    ]
+  },
+  "group_2a": {
+    "label": "Probably carcinogenic to humans",
+    "agents": [
+      { "name": "Acrylamide", "volume": 64, "year": 1994, "notes": "Formed in starchy foods cooked at high temperatures (frying, baking)" },
+      { "name": "Glyphosate", "volume": 112, "year": 2015, "notes": "Herbicide residues on crops" },
+      { "name": "High-temperature frying emissions", "volume": 95, "year": 2010 },
+      { "name": "Malathion", "volume": 112, "year": 2015, "notes": "Insecticide used on food crops" },
+      { "name": "Diazinon", "volume": 112, "year": 2015, "notes": "Insecticide residues" },
+      { "name": "Mate, hot (above 65°C)", "volume": 116, "year": 2016 },
+      { "name": "Nitrate or nitrite (ingested) under conditions that result in endogenous nitrosation", "volume": 94, "year": 2010, "notes": "Includes sodium nitrite, sodium nitrate in cured meats" },
+      { "name": "Red meat (consumption of)", "volume": 114, "year": 2015 },
+      { "name": "Very hot beverages (above 65°C)", "volume": 116, "year": 2016 }
+    ]
+  },
+  "group_2b": {
+    "label": "Possibly carcinogenic to humans",
+    "agents": [
+      { "name": "Acetaldehyde", "volume": 71, "year": 1999, "notes": "When not associated with alcohol consumption; food processing byproduct" },
+      { "name": "Aflatoxin M1", "volume": 56, "year": 1993, "notes": "Mycotoxin metabolite found in milk and dairy" },
+      { "name": "Aspartame", "volume": 134, "year": 2023 },
+      { "name": "Bracken fern", "volume": 40, "year": 1986, "notes": "Consumed as food in some cultures" },
+      { "name": "Butylated hydroxyanisole (BHA)", "volume": 40, "year": 1986 },
+      { "name": "Caffeic acid", "volume": 56, "year": 1993, "notes": "Naturally occurring in coffee, fruits" },
+      { "name": "Carbon black", "volume": 65, "year": 1996, "notes": "Used in food packaging" },
+      { "name": "Citrus Red No. 2", "volume": 8, "year": 1975 },
+      { "name": "Crotonaldehyde", "volume": 63, "year": 1995, "notes": "Formed in heated fats and oils" },
+      { "name": "Cycasin", "volume": 10, "year": 1976, "notes": "Toxin in cycad nuts" },
+      { "name": "DDT (p,p'-DDT)", "volume": 113, "year": 2015, "notes": "Legacy pesticide residues in food" },
+      { "name": "Fumonisin B1", "volume": 82, "year": 2002, "notes": "Mycotoxin contaminating corn" },
+      { "name": "Heterocyclic aromatic amines (MeIQ)", "volume": 56, "year": 1993, "notes": "Formed when cooking meat at high temperatures" },
+      { "name": "Heterocyclic aromatic amines (MeIQx)", "volume": 56, "year": 1993, "notes": "Formed when cooking meat at high temperatures" },
+      { "name": "Heterocyclic aromatic amines (PhIP)", "volume": 56, "year": 1993, "notes": "Formed when cooking meat at high temperatures" },
+      { "name": "Lead", "volume": 87, "year": 2006, "notes": "Contaminant in food and water" },
+      { "name": "Methylmercury compounds", "volume": 58, "year": 1993, "notes": "Found in fish, especially large predatory species" },
+      { "name": "Ochratoxin A", "volume": 56, "year": 1993, "notes": "Mycotoxin in grains, coffee, wine, dried fruits" },
+      { "name": "Pickled vegetables (traditional Asian)", "volume": 56, "year": 1993 },
+      { "name": "Potassium bromate", "volume": 73, "year": 1999, "notes": "Flour treatment agent" },
+      { "name": "Propyl gallate", "volume": 134, "year": 2023, "notes": "Antioxidant preservative" },
+      { "name": "Safrole", "volume": 10, "year": 1976, "notes": "Flavoring agent, formerly in root beer" },
+      { "name": "Styrene", "volume": 121, "year": 2019, "notes": "Can migrate from polystyrene food containers" },
+      { "name": "Titanium dioxide", "volume": 134, "year": 2023, "notes": "Food whitening agent E171" }
+    ]
+  },
+  "group_3": {
+    "label": "Not classifiable as to its carcinogenicity to humans",
+    "agents": [
+      { "name": "Acesulfame potassium", "volume": 134, "year": 2023, "notes": "Artificial sweetener" },
+      { "name": "Amaranth (dye)", "volume": 8, "year": 1975, "notes": "Food dye E123" },
+      { "name": "Brilliant Blue FCF", "volume": 16, "year": 1978, "notes": "Food dye FD&C Blue No. 1, E133" },
+      { "name": "Butylated hydroxytoluene (BHT)", "volume": 40, "year": 1986 },
+      { "name": "Caffeine", "volume": 51, "year": 1991 },
+      { "name": "Carrageenan", "volume": 31, "year": 1983 },
+      { "name": "Carmoisine", "volume": 16, "year": 1978, "notes": "Food dye E122" },
+      { "name": "Cholesterol", "volume": 10, "year": 1976 },
+      { "name": "Coffee (drinking)", "volume": 116, "year": 2016 },
+      { "name": "Coumarin", "volume": 10, "year": 1976, "notes": "Flavoring agent" },
+      { "name": "Cyclamates", "volume": 22, "year": 1980, "notes": "Artificial sweetener" },
+      { "name": "D&C Red No. 9", "volume": 8, "year": 1975 },
+      { "name": "Dulcin", "volume": 12, "year": 1976, "notes": "Banned artificial sweetener" },
+      { "name": "Eugenol", "volume": 36, "year": 1985, "notes": "Found in clove oil, used as flavoring" },
+      { "name": "Fast Green FCF", "volume": 16, "year": 1978, "notes": "Food dye FD&C Green No. 3, E143" },
+      { "name": "Fluorides (inorganic)", "volume": 27, "year": 1982, "notes": "In drinking water" },
+      { "name": "Hydrogen peroxide", "volume": 71, "year": 1999, "notes": "Used in food processing" },
+      { "name": "Iron dextran", "volume": 2, "year": 1973 },
+      { "name": "Kaempferol", "volume": 56, "year": 1993, "notes": "Flavonoid in fruits and vegetables" },
+      { "name": "Mate (not very hot)", "volume": 116, "year": 2016 },
+      { "name": "Melamine", "volume": 73, "year": 1999, "notes": "Food contaminant (2008 scandal)" },
+      { "name": "Orange G", "volume": 8, "year": 1975, "notes": "Food dye" },
+      { "name": "Orange I", "volume": 8, "year": 1975, "notes": "Food dye" },
+      { "name": "Patulin", "volume": 40, "year": 1986, "notes": "Mycotoxin in apple products" },
+      { "name": "Ponceau SX", "volume": 8, "year": 1975, "notes": "Food dye" },
+      { "name": "Quercetin", "volume": 73, "year": 1999, "notes": "Flavonoid in fruits and vegetables" },
+      { "name": "Saccharin", "volume": 73, "year": 1999, "notes": "Artificial sweetener" },
+      { "name": "Selenium and selenium compounds", "volume": 9, "year": 1975, "notes": "Essential nutrient, supplemental" },
+      { "name": "Sorbitol", "volume": 134, "year": 2023, "notes": "Sugar alcohol sweetener" },
+      { "name": "Sucralose", "volume": 134, "year": 2023, "notes": "Artificial sweetener" },
+      { "name": "Sunset Yellow FCF", "volume": 8, "year": 1975, "notes": "Food dye FD&C Yellow No. 6, E110" },
+      { "name": "Tea", "volume": 51, "year": 1991 },
+      { "name": "Theobromine", "volume": 51, "year": 1991, "notes": "In chocolate and cocoa" },
+      { "name": "Xylitol", "volume": 134, "year": 2023, "notes": "Sugar alcohol sweetener" }
+    ]
+  }
+}

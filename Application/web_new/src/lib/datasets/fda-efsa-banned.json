@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "source": "FDA regulations (21 CFR), EFSA decisions, EU Regulation 1333/2008",
+    "last_updated": "2026-06-21",
+    "how_to_update": "Add new entries with name, jurisdiction, action, year, and regulation fields. Check FDA Federal Register notices and EFSA Journal for updates."
+  },
+  "banned_or_restricted": [
+    { "name": "Brominated vegetable oil (BVO)", "jurisdiction": "FDA", "action": "GRAS status revoked", "year": 2024, "regulation": "21 CFR 180.30 revoked", "notes": "Final rule effective August 2024" },
+    { "name": "Partially hydrogenated oils (trans fats)", "jurisdiction": "FDA", "action": "No longer GRAS", "year": 2018, "regulation": "Final determination 2015, compliance 2018-2020", "notes": "Artificial trans fats removed from food supply" },
+    { "name": "Red No. 3 (Erythrosine, E127)", "jurisdiction": "FDA", "action": "Authorization revoked for food use", "year": 2025, "regulation": "Final rule January 2025; compliance by January 2027", "notes": "Delaney clause — shown to cause cancer in animals" },
+    { "name": "Red No. 2 (Amaranth, E123)", "jurisdiction": "FDA", "action": "Delisted", "year": 1976, "regulation": "21 CFR 81.10", "notes": "Suspected carcinogen" },
+    { "name": "Red No. 4 (Scarlet GN)", "jurisdiction": "FDA", "action": "Delisted", "year": 1976, "notes": "Adrenal gland damage in dogs" },
+    { "name": "Red No. 32", "jurisdiction": "FDA", "action": "Delisted", "year": 1956 },
+    { "name": "Orange No. 1", "jurisdiction": "FDA", "action": "Delisted", "year": 1956, "notes": "Organ damage in studies" },
+    { "name": "Orange No. 2", "jurisdiction": "FDA", "action": "Delisted", "year": 1960 },
+    { "name": "Yellow No. 1", "jurisdiction": "FDA", "action": "Delisted", "year": 1959 },
+    { "name": "Yellow No. 2", "jurisdiction": "FDA", "action": "Delisted", "year": 1959 },
+    { "name": "Yellow No. 3", "jurisdiction": "FDA", "action": "Delisted", "year": 1959 },
+    { "name": "Yellow No. 4", "jurisdiction": "FDA", "action": "Delisted", "year": 1959 },
+    { "name": "Violet No. 1", "jurisdiction": "FDA", "action": "Delisted", "year": 1973 },
+    { "name": "Cyclamate", "jurisdiction": "FDA", "action": "Banned", "year": 1969, "notes": "Bladder cancer in rats. Still approved in EU and 55+ countries." },
+    { "name": "Safrole", "jurisdiction": "FDA", "action": "Banned as food additive", "year": 1960, "notes": "Hepatocarcinogen. Naturally occurs in sassafras, formerly used in root beer." },
+    { "name": "Coumarin", "jurisdiction": "FDA", "action": "Banned as food additive", "year": 1954, "notes": "Liver toxicity. Naturally present in cinnamon (cassia variety)." },
+    { "name": "Dulcin", "jurisdiction": "FDA", "action": "Banned", "year": 1950, "notes": "Artificial sweetener — liver carcinogen" },
+    { "name": "Thiourea", "jurisdiction": "FDA", "action": "Banned as food additive", "year": 1977, "notes": "Carcinogen, previously used in citrus fruit packaging" },
+    { "name": "Diethylstilbestrol (DES)", "jurisdiction": "FDA", "action": "Banned in food animals", "year": 1979, "notes": "Synthetic estrogen, growth promoter" },
+    { "name": "Calamus (Acorus calamus)", "jurisdiction": "FDA", "action": "Banned as food additive", "year": 1968, "notes": "Contains beta-asarone, a carcinogen" },
+    { "name": "Boric acid / Borax", "jurisdiction": "FDA", "action": "Banned as food preservative", "year": 1950, "notes": "Toxic. Banned in 1920s, briefly reinstated during WWII, permanently banned 1950s." },
+    { "name": "Azodicarbonamide (ADA)", "jurisdiction": "EU/Australia", "action": "Banned as food additive", "year": 2005, "notes": "Flour treatment agent. Still FDA-approved in US (21 CFR 172.806) at ≤45 ppm." },
+    { "name": "Potassium bromate", "jurisdiction": "EU/UK/Canada/China/Brazil", "action": "Banned", "year": 1990, "notes": "Flour treatment agent. IARC 2B. Not formally banned by FDA but industry has largely removed it. California Prop 65 listed." },
+    { "name": "Titanium dioxide (E171)", "jurisdiction": "EU", "action": "No longer authorized as food additive", "year": 2022, "regulation": "EU Regulation 2022/63, effective August 2022", "notes": "EFSA 2021: can no longer be considered safe. Still FDA-approved in US." },
+    { "name": "Fast Yellow AB (E105)", "jurisdiction": "EU/FDA", "action": "Banned", "year": 1984, "notes": "Banned in both EU and US" },
+    { "name": "Patent Blue V (E131)", "jurisdiction": "FDA/Australia", "action": "Not approved for food use", "notes": "Approved in EU. Not permitted in US or Australia." },
+    { "name": "Green S (E142)", "jurisdiction": "FDA/Japan", "action": "Not approved for food use", "notes": "Approved in EU. Not permitted in US or Japan." },
+    { "name": "Vegetable carbon (E153)", "jurisdiction": "FDA", "action": "Not approved for food use", "notes": "Approved in EU." },
+    { "name": "Biphenyl (E230)", "jurisdiction": "EU", "action": "No longer approved", "year": 2005, "notes": "Formerly used as fruit preservative" },
+    { "name": "Orthophenyl phenol (E231)", "jurisdiction": "EU", "action": "No longer approved", "year": 2005 },
+    { "name": "Sodium orthophenyl phenol (E232)", "jurisdiction": "EU", "action": "No longer approved", "year": 2005 },
+    { "name": "Allura Red AC (E129)", "jurisdiction": "Individual EU states", "action": "Banned by Austria, Belgium, Denmark, France, Germany, Sweden, Norway, Switzerland", "notes": "Still approved at EU level. Southampton Six member." }
+  ],
+  "southampton_six": {
+    "source": "EU Regulation 1333/2008, Annex V — McCann et al., The Lancet, 2007",
+    "notes": "Products containing these must carry: 'may have an adverse effect on activity and attention in children'",
+    "dyes": [
+      { "name": "Tartrazine", "e_number": "E102", "fdc_name": "Yellow 5" },
+      { "name": "Quinoline Yellow WS", "e_number": "E104" },
+      { "name": "Sunset Yellow FCF", "e_number": "E110", "fdc_name": "Yellow 6" },
+      { "name": "Carmoisine (Azorubine)", "e_number": "E122" },
+      { "name": "Ponceau 4R", "e_number": "E124" },
+      { "name": "Allura Red AC", "e_number": "E129", "fdc_name": "Red 40" }
+    ]
+  }
+}

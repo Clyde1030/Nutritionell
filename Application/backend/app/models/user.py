@@ -28,6 +28,10 @@ class UserProfile(Base):
     # Optional — used to tailor recommendations (e.g. iron, protein targets differ by sex)
     sex: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
+    # Optional — one of AGE_GROUP_OPTIONS keys (e.g. "18-29", "65+"); tailors
+    # nutrient guidance (bone health, sodium sensitivity, growth needs, etc.)
+    age_group: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
     # ── Health constraints ───────────────────────────────────────────────────
     allergies_and_conditions: Mapped[List[str]] = mapped_column(
         ARRAY(String(100)), nullable=False, default=list, server_default="{}"

@@ -22,7 +22,8 @@ export default function GoalsTab() {
       .catch(() => {});
   }, []);
 
-  const addPrompt = (p: string) => setGoals(prev => prev.trim() ? `${prev.trim()}\n${p}` : p);
+  const addPrompt = (p: string) =>
+    setGoals(prev => (prev.includes(p) ? prev : prev.trim() ? `${prev.trim()}\n${p}` : p));
 
   const handleSave = async () => {
     if (!profileId) { alert('Please complete your Profile first.'); return; }
@@ -64,9 +65,15 @@ export default function GoalsTab() {
 
         <p className={s.sectionLabel}>Quick add</p>
         <div className={s.promptGrid}>
-          {GOAL_PROMPTS.map(p => (
-            <button key={p} className={s.promptChip} onClick={() => addPrompt(p)}>+ {p}</button>
-          ))}
+          {GOAL_PROMPTS.map(p => {
+            const added = goals.includes(p);
+            return (
+              <button key={p} className={`${s.promptChip} ${added ? s.promptChipAdded : ''}`}
+                onClick={() => addPrompt(p)} disabled={added}>
+                {added ? '✓' : '+'} {p}
+              </button>
+            );
+          })}
         </div>
 
         {!profileId && (

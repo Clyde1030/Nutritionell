@@ -41,3 +41,27 @@
 .foodGrid { display: flex; flex-wrap: wrap; gap: 8px; }
 .foodTag { border: 1px solid; border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; }
 .bullet { font-size: 13px; color: var(--sub); line-height: 1.8; padding-left: 4px; }
+
+.transparencyBtn { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 13px; font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 12px; }
+.transparencyBtn:hover { background: var(--surface); }
+
+.transparencyOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
+.transparencyPanel { position: relative; background: var(--card); border-radius: 20px 20px 0 0; width: 100%; max-width: 720px; max-height: 85vh; overflow-y: auto; padding: 20px; }
+.transparencyClose { position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border-radius: 8px; color: var(--sub); font-size: 16px; background: transparent; display: flex; align-items: center; justify-content: center; }
+.transparencyClose:hover { background: var(--surface); color: var(--text); }
+.transparencyTitle { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; padding-right: 36px; }
+.transparencySub { font-size: 13px; color: var(--sub); line-height: 1.55; margin-top: 6px; }
+.transparencyLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin: 18px 0 8px; }
+.transparencyStage { display: flex; gap: 12px; margin-bottom: 12px; }
+.transparencyNum { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 12px; background: rgba(124,106,255,0.15); font-size: 11px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.transparencyStageTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.transparencyStageBody { font-size: 12.5px; color: var(--sub); line-height: 1.55; }
+.transparencyBox { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.transparencyMono { font-size: 12px; color: var(--sub); line-height: 1.6; white-space: pre-wrap; }
+.transparencyFact { font-size: 12.5px; color: var(--sub); line-height: 1.6; }
+.transparencyDone { width: 100%; margin-top: 18px; background: var(--accent); color: #fff; border-radius: 14px; padding: 13px; font-size: 15px; font-weight: 700; }
+
+@media (min-width: 600px) {
+  .transparencyOverlay { align-items: center; }
+  .transparencyPanel { border-radius: 20px; }
+}

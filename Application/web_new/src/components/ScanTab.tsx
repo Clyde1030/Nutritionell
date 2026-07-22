@@ -3,7 +3,9 @@ import { useRef, useState } from 'react';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
 import { getProfileId } from '@/lib/storage';
 import type { ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
-import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS } from '@/lib/types';
+import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS } from '@/lib/types';
+import CameraCapture from './CameraCapture';
+import TransparencyOverview from './TransparencyOverview';
 import s from './ScanTab.module.css';
 
 interface Alternative {
@@ -28,6 +30,11 @@ export default function ScanTab() {
   const [recommenderOn, setRecommenderOn] = useState(false);
   const [recommendations, setRecommendations] = useState<Record<string, Alternative[]>>({});
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [showTransparency, setShowTransparency] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [detectedCount, setDetectedCount] = useState<number | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const analyze = async (file: File) => {
     const profileId = getProfileId();
@@ -38,31 +45,96 @@ export default function ScanTab() {
 
     setView('analyzing');
     setStatus('Uploading image…');
+    setDetectedCount(null);
+    setProgress(null);
     const url = URL.createObjectURL(file);
     setImageUrl(url);
 
-    try {
+    const makeForm = () => {
       const fd = new FormData();
       fd.append('image', file);
       fd.append('profile_id', profileId);
+      return fd;
+    };
 
+    // Plain (non-streaming) request — used for mock mode and as a fallback.
+    const runPlain = async () => {
       setStatus('Identifying products…');
       const endpoint = USE_MOCK_ANALYZE ? ENDPOINTS.analyzeMock : ENDPOINTS.analyze;
-      const r = await fetch(endpoint, { method: 'POST', body: fd });
+      const r = await fetch(endpoint, { method: 'POST', body: makeForm() });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
-
-      setStatus('Scoring against your profile…');
       const data: ShelfAnalysisResponse = await r.json();
       setResult(data);
       setView('results');
+    };
+
+    try {
+      if (USE_MOCK_ANALYZE) {
+        await runPlain();
+        return;
+      }
+
+      // Try the streaming endpoint for live progress; fall back to plain if the
+      // endpoint isn't available (e.g. an older backend deploy).
+      let streamed = false;
+      try {
+        setStatus('Uploading image…');
+        const r = await fetch(ENDPOINTS.analyzeStream, { method: 'POST', body: makeForm() });
+        if (!r.ok || !r.body) throw new Error('stream-unavailable');
+        streamed = true;
+
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        setStatus('Detecting products…');
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf('\n\n')) >= 0) {
+            const raw = buf.slice(0, nl); buf = buf.slice(nl + 2);
+            const line = raw.split('\n').find(l => l.startsWith('data:'));
+            if (!line) continue;
+            const ev = JSON.parse(line.slice(5).trim());
+            if (ev.stage === 'detected') {
+              setDetectedCount(ev.count);
+              setProgress({ done: 0, total: ev.count });
+              setStatus(ev.count ? `Found ${ev.count} product${ev.count === 1 ? '' : 's'} — collecting details…` : 'No products detected…');
+            } else if (ev.stage === 'progress') {
+              setProgress({ done: ev.done, total: ev.total });
+              setStatus(`Collecting details — ${ev.done} of ${ev.total} products`);
+            } else if (ev.stage === 'scoring') {
+              setStatus('Scoring against your profile…');
+            } else if (ev.stage === 'complete') {
+              setResult(ev.result as ShelfAnalysisResponse);
+              setView('results');
+            } else if (ev.stage === 'error') {
+              throw new Error(ev.detail ?? 'Analysis failed.');
+            }
+          }
+        }
+      } catch (streamErr: any) {
+        // Only fall back if streaming itself was unavailable — not on a real
+        // in-stream analysis error (which we surface to the user).
+        if (streamed) throw streamErr;
+        await runPlain();
+      }
     } catch (e: any) {
-      alert(`Analysis failed: ${e.message}`);
+      const msg = e?.message ?? 'Unknown error';
+      // A rate/quota/credit limit on the AI service surfaces as 429/503 or
+      // "temporarily unavailable" / "resource exhausted".
+      if (/\b429\b|\b503\b|quota|resource[_ ]?exhausted|temporarily unavailable|rate limit/i.test(msg)) {
+        setErrorMsg('The AI service is busy or has hit its usage limit right now — this is usually a temporary API rate or credit limit, not your photo. Wait a moment and try again.');
+      } else {
+        setErrorMsg(`Analysis failed: ${msg}`);
+      }
       setView('picker');
     }
   };
 
   const fetchRecommendations = async (products: ProductItem[]) => {
-    const avoidProducts = products.filter(p => p.scoring === 'Avoid');
+    const avoidProducts = products.filter(p => p.scoring === "Doesn't Fit");
     if (avoidProducts.length === 0) return;
     setLoadingRecs(true);
     try {
@@ -88,7 +160,14 @@ export default function ScanTab() {
 
   const handleFile = (file: File | null) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+    setErrorMsg(null);
+    // iPhone HEIC photos are allowed — the backend converts them to JPEG.
+    // Their MIME type is sometimes empty, so also accept by extension.
+    const isImage = file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name);
+    if (!isImage) {
+      setErrorMsg('Please select an image file (JPEG, PNG, or an iPhone photo).');
+      return;
+    }
     analyze(file);
   };
 
@@ -98,11 +177,23 @@ export default function ScanTab() {
   };
 
   if (view === 'analyzing') {
+    const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
     return (
       <div className={s.analyzing}>
         <div className={s.spinner} />
         <p className={s.analyzingTitle}>Analyzing shelf</p>
+        {detectedCount != null && (
+          <p className={s.detectedCount}>{detectedCount} product{detectedCount === 1 ? '' : 's'} detected</p>
+        )}
         <p className={s.analyzingStatus}>{status}</p>
+        {progress && progress.total > 0 && (
+          <div className={s.progressWrap}>
+            <div className={s.progressTrack}>
+              <div className={s.progressFill} style={{ width: `${pct}%` }} />
+            </div>
+            <p className={s.progressLabel}>{progress.done} of {progress.total} products collected</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -114,6 +205,8 @@ export default function ScanTab() {
 
     return (
       <div className={s.resultsPage}>
+        <p className={s.resultsIntro}>Let&apos;s see which products fit your goals! 🎯</p>
+
         {/* Annotated image */}
         <div className={s.imageWrap}>
           <img
@@ -141,16 +234,19 @@ export default function ScanTab() {
 
         {/* Summary bar */}
         <div className={s.summaryBar}>
-          {(['Great', 'OK', 'Avoid', 'Unidentified'] as ScoreEnum[]).map(sc =>
+          {(['Great Fit', 'Just OK Fit', 'Neutral Fit', "Doesn't Fit", 'Unidentified'] as ScoreEnum[]).map(sc =>
             counts[sc] ? (
               <div key={sc} className={s.chip} style={{ borderColor: SCORE_COLORS[sc] }}>
                 <span className={s.chipCount} style={{ color: SCORE_COLORS[sc] }}>{counts[sc]}</span>
-                <span className={s.chipLabel}>{sc}</span>
+                <span className={s.chipLabel}>{SCORE_LABELS[sc]}</span>
               </div>
             ) : null
           )}
           <button className={s.newScanBtn} onClick={() => { setResult(null); setView('picker'); }}>New scan</button>
         </div>
+
+        {/* Score legend — what each score means, in addition to the Transparency Overview prompt */}
+        <ScoreLegend />
 
         {/* Nutritional Vector Recommender Toggle */}
         <div style={{
@@ -163,7 +259,7 @@ export default function ScanTab() {
               Enable Nutritional Vector Recommender
             </p>
             <p style={{ fontSize: 11, color: 'var(--sub)' }}>
-              FAISS cosine similarity against USDA macros — suggests healthier alternatives for "Avoid" items
+              FAISS cosine similarity against USDA macros — suggests healthier alternatives for &quot;Doesn&apos;t Fit&quot; items
             </p>
           </div>
           <button
@@ -252,6 +348,13 @@ export default function ScanTab() {
         <h1 className={s.title}>Scan a Shelf</h1>
         <p className={s.sub}>Upload a photo of a grocery shelf for AI-powered nutritional analysis</p>
 
+        {errorMsg && (
+          <div className={s.errorBanner}>
+            <span>⚠️ {errorMsg}</span>
+            <button className={s.errorDismiss} onClick={() => setErrorMsg(null)} aria-label="Dismiss">✕</button>
+          </div>
+        )}
+
         {/* Drop zone */}
         <div className={s.dropZone}
           onDrop={handleDrop}
@@ -259,20 +362,29 @@ export default function ScanTab() {
           onClick={() => fileRef.current?.click()}>
           <div className={s.dropIcon}>🖼️</div>
           <p className={s.dropTitle}>Drop an image here or click to upload</p>
-          <p className={s.dropSub}>JPEG, PNG, WebP • Works best with a clear photo of a grocery shelf</p>
-          <input ref={fileRef} type="file" accept="image/*" className={s.fileInput}
+          <p className={s.dropSub}>JPEG, PNG, WebP, or iPhone (HEIC) • Works best with a clear photo of a grocery shelf</p>
+          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput}
             onChange={e => handleFile(e.target.files?.[0] ?? null)} />
         </div>
 
-        {/* Camera capture on mobile */}
-        <button className={s.cameraBtn} onClick={() => {
-          const input = document.createElement('input');
-          input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment';
-          input.onchange = () => handleFile(input.files?.[0] ?? null);
-          input.click();
-        }}>
+        {/* Live camera capture */}
+        <button className={s.cameraBtn} onClick={() => setShowCamera(true)}>
           📷  Take a Photo
         </button>
+
+        {/* Transparency + privacy */}
+        <button className={s.transparencyBtn} onClick={() => setShowTransparency(true)}>
+          🔎  Transparency Overview — see exactly what we send before you scan
+        </button>
+
+        <div className={s.privacyNote}>
+          <p className={s.privacyTitle}>A note on privacy</p>
+          <p className={s.privacyText}>
+            Our current version does not blur faces, so try to avoid people in frame. Either way,
+            we do not store your images, and our models focus on picking up products while ignoring
+            background noise.
+          </p>
+        </div>
 
         {/* How it works */}
         <div className={s.howCard}>
@@ -294,6 +406,37 @@ export default function ScanTab() {
           <div className={s.warning}>⚠️ Set up your profile first for personalised scoring</div>
         )}
       </div>
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={(file) => { setShowCamera(false); handleFile(file); }}
+          onClose={() => setShowCamera(false)}
+          onFallbackUpload={() => fileRef.current?.click()}
+        />
+      )}
+      {showTransparency && <TransparencyOverview onClose={() => setShowTransparency(false)} />}
+    </div>
+  );
+}
+
+function ScoreLegend() {
+  const rows: ScoreEnum[] = ['Great Fit', 'Just OK Fit', 'Neutral Fit', "Doesn't Fit", 'Unidentified'];
+  return (
+    <div className={s.legendCard}>
+      <p className={s.legendTitle}>What each score means</p>
+      <p className={s.legendSub}>
+        Scores reflect how well a product fits <em>your</em> goals, dietary philosophy,
+        allergies, avoided ingredients, and processing tolerance — not a generic health rating.
+      </p>
+      {rows.map(sc => (
+        <div key={sc} className={s.legendRow}>
+          <span className={s.legendDot} style={{ background: SCORE_COLORS[sc] }} />
+          <div>
+            <p className={s.legendLabel} style={{ color: SCORE_COLORS[sc] }}>{SCORE_LABELS[sc]}</p>
+            <p className={s.legendDesc}>{SCORE_DESCRIPTIONS[sc]}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -304,7 +447,7 @@ function ProductRow({ product, onPress }: { product: ProductItem; onPress: () =>
   return (
     <button className={s.productRow} style={{ borderLeftColor: color }} onClick={onPress}>
       <div className={s.productTop}>
-        <span className={s.scorePill} style={{ background: bg, borderColor: color, color }}>{product.scoring}</span>
+        <span className={s.scorePill} style={{ background: bg, borderColor: color, color }}>{SCORE_LABELS[product.scoring]}</span>
         {product.processing_level != null && (
           <span className={s.novaTag} style={{ borderColor: NOVA_COLORS[product.processing_level], color: NOVA_COLORS[product.processing_level] }}>
             NOVA {product.processing_level} · {NOVA_LABELS[product.processing_level]}
@@ -331,7 +474,7 @@ function DetailPanel({ product, onClose }: { product: ProductItem; onClose: () =
     <div className={s.detail}>
       <button className={s.detailClose} onClick={onClose}>✕ Close</button>
       <div className={s.detailBanner} style={{ background: bg, borderColor: color }}>
-        <span className={s.detailScore} style={{ color }}>{product.scoring}</span>
+        <span className={s.detailScore} style={{ color }}>{SCORE_LABELS[product.scoring]}</span>
         {product.processing_level != null && (
           <span className={s.novaTag} style={{ borderColor: NOVA_COLORS[product.processing_level!], color: NOVA_COLORS[product.processing_level!] }}>
             NOVA {product.processing_level} · {NOVA_LABELS[product.processing_level!]}
@@ -345,12 +488,25 @@ function DetailPanel({ product, onClose }: { product: ProductItem; onClose: () =
           {product.reasoning_by_factor.map((f, i) => <p key={i} className={s.detailFactor}>{f}</p>)}
         </div>
       )}
+      {product.score_breakdown && <ScoreBreakdownCard breakdown={product.score_breakdown} />}
       <p className={s.detailBrand}>{product.brand}</p>
-      <p className={s.detailName}>{product.product_name}</p>
+      <p className={s.detailName}>{product.product_name}{product.variant ? ` — ${product.variant}` : ''}</p>
+      {product.crop_image && (
+        <div className={s.detailSection}>
+          <p className={s.detailSectionLabel}>Cropped from your photo</p>
+          <img src={product.crop_image} alt={`${product.brand} ${product.product_name} crop`} className={s.cropImage} />
+        </div>
+      )}
       {nf.detected_ingredients.length > 0 && (
         <div className={s.detailSection}>
-          <p className={s.detailSectionLabel}>Detected Ingredients</p>
+          <p className={s.detailSectionLabel}>Ingredients</p>
           <p className={s.detailIngredients}>{nf.detected_ingredients.join(', ')}</p>
+        </div>
+      )}
+      {product.allergens.length > 0 && (
+        <div className={s.detailSection}>
+          <p className={s.detailSectionLabel}>Allergens</p>
+          <p className={s.detailIngredients}>{product.allergens.join(', ')}</p>
         </div>
       )}
       <div className={s.factsTable}>
@@ -376,6 +532,40 @@ function DetailPanel({ product, onClose }: { product: ProductItem; onClose: () =
           {nf.flagged_ingredients.map(ing => <p key={ing} className={s.flaggedItem}>· {ing}</p>)}
         </>}
       </div>
+    </div>
+  );
+}
+
+function ScoreBreakdownCard({ breakdown }: { breakdown: NonNullable<ProductItem['score_breakdown']> }) {
+  if (breakdown.hard_exclusion) {
+    return (
+      <div className={s.detailSection}>
+        <p className={s.detailSectionLabel}>Score breakdown</p>
+        <p className={s.flaggedTitle}>⛔ Hard exclusion — scoring stopped at Step 1</p>
+        {breakdown.hard_exclusion_reasons.map((r, i) => <p key={i} className={s.flaggedItem}>· {r}</p>)}
+      </div>
+    );
+  }
+  const dims: [string, number | undefined][] = [
+    ['Dietary philosophy', breakdown.philosophy_score],
+    ['Health goal alignment', breakdown.goal_score],
+    ['Ingredient quality', breakdown.ingredient_score],
+    ['Processing level (NOVA)', breakdown.processing_score],
+    ['Nutrition quality', breakdown.nutrition_score],
+  ];
+  return (
+    <div className={s.detailSection}>
+      <p className={s.detailSectionLabel}>Score breakdown</p>
+      {dims.filter(([, v]) => v != null).map(([label, val]) => (
+        <div key={label} className={s.factsRow}>
+          <span>{label}</span><span>{val! > 0 ? `+${val}` : val}</span>
+        </div>
+      ))}
+      {breakdown.total_score != null && (
+        <div className={s.factsRowBold}>
+          <span>Total score</span><span>{breakdown.total_score}</span>
+        </div>
+      )}
     </div>
   );
 }

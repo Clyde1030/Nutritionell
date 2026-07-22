@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     const recommendations: Record<string, Alternative[]> = {};
     for (const product of products) {
-      if (product.scoring === 'Avoid') {
+      if (product.scoring === "Doesn't Fit") {
         const category = categorize(product.product_name);
         recommendations[product.product_name] = ALTERNATIVES_DB[category] ?? ALTERNATIVES_DB['default'];
       }

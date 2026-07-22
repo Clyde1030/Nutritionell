@@ -122,7 +122,7 @@ async def main() -> None:
         print(f"    reasoning: {p.reasoning}")
         print(f"    bounding_box: {[round(v, 3) for v in p.bounding_box]}")
 
-    valid_scores = {"Great", "OK", "Avoid", "Unidentified"}
+    valid_scores = {"Great Fit", "Just OK Fit", "Neutral Fit", "Doesn't Fit", "Unidentified"}
     bad = [p for p in scored if p.scoring.value not in valid_scores or not p.reasoning]
     if not scored or bad:
         print(f"\nFAIL: {len(bad)} of {len(scored)} products had an invalid score or empty reasoning")
