@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import s from './AppearanceTab.module.css';
 
 type Palette = {
@@ -73,38 +73,23 @@ const PALETTES: Palette[] = [
   },
 ];
 
-const APPEARANCE_STORAGE_KEY = 'nutritionell_appearance_palette_v1';
-
 function applyPalette(palette: Palette) {
   const root = document.documentElement;
   Object.entries(palette.vars).forEach(([k, v]) => root.style.setProperty(k, v));
 }
 
-function paletteByName(name: string | null | undefined) {
-  return PALETTES.find((palette) => palette.name === name) ?? PALETTES[0];
-}
-
 export default function AppearanceTab() {
   const [active, setActive] = useState('Default Dark');
-
-  useEffect(() => {
-    const savedPaletteName = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
-    const palette = paletteByName(savedPaletteName);
-    applyPalette(palette);
-    setActive(palette.name);
-  }, []);
 
   const onSelect = (palette: Palette) => {
     applyPalette(palette);
     setActive(palette.name);
-    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, palette.name);
   };
 
   const reset = () => {
     const root = document.documentElement;
     Object.keys(PALETTES[0].vars).forEach((k) => root.style.removeProperty(k));
     setActive('Default Dark');
-    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, PALETTES[0].name);
   };
 
   return (
