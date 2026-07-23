@@ -1,7 +1,15 @@
 import Constants from 'expo-constants';
 
+const envApiBase = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+const normalizedEnvApiBase = envApiBase
+  ? envApiBase.replace(/\/+$/, '')
+  : undefined;
+
 const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0] ?? 'localhost';
-export const API_BASE_URL = `http://${debuggerHost}:8000`;
+
+// In tunnel mode hostUri points at an Expo domain, not your backend host.
+// Prefer EXPO_PUBLIC_API_BASE_URL when set, then fall back to host-derived LAN behavior.
+export const API_BASE_URL = normalizedEnvApiBase ?? `http://${debuggerHost}:8000`;
 
 export const ENDPOINTS = {
   health:          `${API_BASE_URL}/health`,
@@ -11,6 +19,7 @@ export const ENDPOINTS = {
   updateProfile:   (id: string) => `${API_BASE_URL}/api/profile/${id}`,
   analyze:         `${API_BASE_URL}/api/analyze`,
   analyzeMock:     `${API_BASE_URL}/api/analyze/mock`,
+  greenwashingAnalyze: `${API_BASE_URL}/api/greenwashing/analyze`,
   nutritionPlan:   `${API_BASE_URL}/api/profile/nutrition-plan`,
 } as const;
 
