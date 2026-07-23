@@ -24,6 +24,15 @@ const PALETTES: Palette[] = [
   {
     name: 'Light Mode',
     vars: {
+      '--bg': '#e8f6f4', '--card': '#ffffff', '--surface': '#f1faf8',
+      '--border': '#cfe8e2', '--text': '#17356f', '--sub': '#516585',
+      '--accent': '#20d6a4', '--accent-glow': 'rgba(32,214,164,0.2)',
+      '--green': '#1ebc90', '--red': '#d94f5c', '--yellow': '#efbf4c',
+    },
+  },
+  {
+    name: 'Light Mode Classic',
+    vars: {
       '--bg': '#f5f5f7', '--card': '#ffffff', '--surface': '#eeeef2',
       '--border': '#d4d4d8', '--text': '#18181b', '--sub': '#71717a',
       '--accent': '#6d28d9', '--accent-glow': 'rgba(109,40,217,0.1)',
@@ -121,17 +130,6 @@ export default function DevColorToolbar() {
             </button>
           ))}
 
-          <div style={{ marginTop: 12, borderTop: '1px solid #333', paddingTop: 12 }}>
-            <span style={{ color: '#9896b0', fontSize: 11 }}>Live CSS Variables</span>
-            <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-              {Object.entries(PALETTES.find(p => p.name === active)?.vars ?? PALETTES[0].vars).map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: v, border: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }} />
-                  <span style={{ color: '#888', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 

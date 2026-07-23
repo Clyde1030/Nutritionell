@@ -9,14 +9,9 @@ import PlanTab from '@/components/PlanTab';
 import GreenwashingTab from '@/components/GreenwashingTab';
 import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
 import AboutTab from '@/components/AboutTab';
+import AppearanceTab from '@/components/AppearanceTab';
 
-/* ============================================
-   DEV ONLY — Comment out or remove this import
-   and the <DevColorToolbar /> below for production.
-   ============================================ */
-import DevColorToolbar from '@/components/DevColorToolbar';
-
-type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about';
+type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about' | 'appearance';
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home',          label: 'Home',          icon: '⌂' },
   { key: 'profile',       label: 'Profile',       icon: '◎' },
@@ -26,6 +21,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'greenwashing',  label: 'Greenwashing',  icon: '🔍' },
   { key: 'ingredients',   label: 'Nutrition',     icon: '🧬' },
   { key: 'about',         label: 'About',         icon: '✉' },
+  { key: 'appearance',      label: 'Appearance',    icon: '⚙' },
 ];
 
 export default function Home() {
@@ -105,10 +101,8 @@ export default function Home() {
         {tab === 'greenwashing' && <GreenwashingTab />}
         {tab === 'ingredients'  && <IngredientAnalyticsTab />}
         {tab === 'about'        && <AboutTab />}
+        {tab === 'appearance'  && <AppearanceTab />}
       </main>
-
-      {/* DEV ONLY — Remove <DevColorToolbar /> for production */}
-      <DevColorToolbar />
     </div>
   );
 }

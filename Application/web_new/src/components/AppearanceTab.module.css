@@ -1,0 +1,88 @@
+.page { padding: 32px 0; }
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+.header { margin-bottom: 24px; }
+.title { font-size: 30px; font-weight: 800; letter-spacing: -0.6px; color: var(--text); }
+.sub { margin-top: 6px; color: var(--sub); font-size: 14px; }
+
+.section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.resetBtn {
+  border: 1px solid var(--border);
+  color: var(--sub);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.resetBtn:hover {
+  color: var(--text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.palette {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 11px;
+}
+
+.palette:hover {
+  border-color: var(--accent);
+}
+
+.paletteActive {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+@media (max-width: 700px) {
+  .container { padding: 0 16px; }
+  .title { font-size: 26px; }
+  .grid { grid-template-columns: 1fr; }
+}
