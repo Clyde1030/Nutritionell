@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
 import { getProfileId } from '@/lib/storage';
 import type { ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
@@ -18,6 +18,28 @@ interface Alternative {
 }
 
 type View = 'picker' | 'analyzing' | 'results';
+const SCAN_STATE_KEY = 'nutritionell_scan_state_v1';
+
+type PersistedScanState = {
+  view: View;
+  status: string;
+  imageUrl: string;
+  result: ShelfAnalysisResponse | null;
+  selected: ProductItem | null;
+  recommenderOn: boolean;
+  recommendations: Record<string, Alternative[]>;
+  errorMsg: string | null;
+  detectedCount: number | null;
+  progress: { done: number; total: number } | null;
+};
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read image file.'));
+    reader.readAsDataURL(file);
+  });
 
 export default function ScanTab() {
   const [view, setView] = useState<View>('picker');
@@ -33,8 +55,96 @@ export default function ScanTab() {
   const [showCamera, setShowCamera] = useState(false);
   const [showTransparency, setShowTransparency] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [hasProfile, setHasProfile] = useState(false);
   const [detectedCount, setDetectedCount] = useState<number | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    setHasProfile(Boolean(getProfileId()));
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SCAN_STATE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as PersistedScanState;
+
+      if (saved.view === 'analyzing') {
+        // In-flight requests cannot survive a page refresh; restore safely.
+        setView('picker');
+        setImageUrl(saved.imageUrl ?? '');
+        setErrorMsg('Your previous scan was interrupted by a page refresh. Please run the scan again.');
+      } else {
+        setView(saved.view ?? 'picker');
+        setImageUrl(saved.imageUrl ?? '');
+        setResult(saved.result ?? null);
+        setSelected(saved.selected ?? null);
+        setRecommenderOn(Boolean(saved.recommenderOn));
+        setRecommendations(saved.recommendations ?? {});
+        setErrorMsg(saved.errorMsg ?? null);
+        setDetectedCount(saved.detectedCount ?? null);
+        setProgress(saved.progress ?? null);
+      }
+      setStatus(saved.status ?? '');
+    } catch {
+      // Ignore malformed saved state.
+    }
+  }, []);
+
+  useEffect(() => {
+    const hasState =
+      view !== 'picker' ||
+      Boolean(imageUrl) ||
+      Boolean(result) ||
+      Boolean(errorMsg) ||
+      Boolean(detectedCount) ||
+      Boolean(progress);
+
+    if (!hasState) {
+      localStorage.removeItem(SCAN_STATE_KEY);
+      return;
+    }
+
+    const payload: PersistedScanState = {
+      view,
+      status,
+      imageUrl,
+      result,
+      selected,
+      recommenderOn,
+      recommendations,
+      errorMsg,
+      detectedCount,
+      progress,
+    };
+    localStorage.setItem(SCAN_STATE_KEY, JSON.stringify(payload));
+  }, [
+    view,
+    status,
+    imageUrl,
+    result,
+    selected,
+    recommenderOn,
+    recommendations,
+    errorMsg,
+    detectedCount,
+    progress,
+  ]);
+
+  const resetScanState = () => {
+    setStatus('');
+    setImageUrl('');
+    setResult(null);
+    setSelected(null);
+    setImgEl(null);
+    setRecommenderOn(false);
+    setRecommendations({});
+    setLoadingRecs(false);
+    setDetectedCount(null);
+    setProgress(null);
+    setErrorMsg(null);
+    setView('picker');
+  };
 
   const analyze = async (file: File) => {
     const profileId = getProfileId();
@@ -43,11 +153,12 @@ export default function ScanTab() {
       return;
     }
 
+    setErrorMsg(null);
     setView('analyzing');
     setStatus('Uploading image…');
     setDetectedCount(null);
     setProgress(null);
-    const url = URL.createObjectURL(file);
+    const url = await fileToDataUrl(file).catch(() => URL.createObjectURL(file));
     setImageUrl(url);
 
     const makeForm = () => {
@@ -242,7 +353,7 @@ export default function ScanTab() {
               </div>
             ) : null
           )}
-          <button className={s.newScanBtn} onClick={() => { setResult(null); setView('picker'); }}>New scan</button>
+          <button className={s.newScanBtn} onClick={resetScanState}>New scan</button>
         </div>
 
         {/* Score legend — what each score means, in addition to the Transparency Overview prompt */}
@@ -402,7 +513,7 @@ export default function ScanTab() {
           ))}
         </div>
 
-        {!getProfileId() && (
+        {!hasProfile && (
           <div className={s.warning}>⚠️ Set up your profile first for personalised scoring</div>
         )}
       </div>
