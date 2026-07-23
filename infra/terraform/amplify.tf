@@ -18,9 +18,20 @@ resource "aws_amplify_app" "web_new" {
   environment_variables = {
     NEXT_PUBLIC_API_URL       = "https://${local.api_domain_name}"
     AMPLIFY_MONOREPO_APP_ROOT = "Application/web_new"
+    GEMINI_API_KEY            = var.gemini_api_key
   }
 
   # Monorepo setting: web_new lives at Application/web_new, not the repo root.
+  #
+  # Amplify Hosting only reliably injects `environment_variables` into the
+  # *build* container -- Next.js App Router route handlers (app/api/**) run
+  # in a separate SSR compute Lambda at request time that does not always
+  # receive them (a known AWS Amplify Hosting gap, not Next.js-specific).
+  # Writing server-only secrets into .env.production during preBuild works
+  # around it: Next.js's own env loader reads that file when the SSR server
+  # boots, so the value is available via process.env at runtime without ever
+  # being inlined into the client bundle (unlike next.config.js's `env` key,
+  # which is NOT safe for secrets since it *does* ship to the browser).
   build_spec = <<-YAML
     version: 1
     applications:
@@ -29,6 +40,7 @@ resource "aws_amplify_app" "web_new" {
           phases:
             preBuild:
               commands:
+                - echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env.production
                 - npm ci
             build:
               commands:
@@ -54,6 +66,7 @@ resource "aws_amplify_branch" "main" {
   environment_variables = {
     NEXT_PUBLIC_API_URL       = "https://${local.api_domain_name}"
     AMPLIFY_MONOREPO_APP_ROOT = "Application/web_new"
+    GEMINI_API_KEY            = var.gemini_api_key
   }
 }
 
