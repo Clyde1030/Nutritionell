@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import GreenwashingTransparency from './GreenwashingTransparency';
+import { ENDPOINTS } from '@/lib/api';
 import s from './GreenwashingTab.module.css';
 
 interface ClaimVerdict {
@@ -53,9 +54,9 @@ export default function GreenwashingTab() {
     try {
       const fd = new FormData();
       fd.append('image', file);
-      const r = await fetch('/api/greenwashing', { method: 'POST', body: fd });
+      const r = await fetch(ENDPOINTS.greenwashingAnalyze, { method: 'POST', body: fd });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error ?? `Server ${r.status}`);
+      if (!r.ok) throw new Error(data.detail ?? data.error ?? `Server ${r.status}`);
       setResult(data);
       setView('results');
     } catch (e: any) {

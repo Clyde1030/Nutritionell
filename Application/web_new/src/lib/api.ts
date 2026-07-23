@@ -10,6 +10,7 @@ export const ENDPOINTS = {
   analyzeStream: `${API_BASE_URL}/api/analyze/stream`,
   analyzeMock: `${API_BASE_URL}/api/analyze/mock`,
   nutritionPlan: `${API_BASE_URL}/api/profile/nutrition-plan`,
+  greenwashingAnalyze: `${API_BASE_URL}/api/greenwashing/analyze`,
 } as const;
 
 /** Flip to true to hit /api/analyze/mock instead of the real Gemini+YOLO pipeline. */

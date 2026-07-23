@@ -14,7 +14,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import analyze, mock_analyze, users
+from app.routers import analyze, greenwashing, mock_analyze, users
 from app.services.yolo_service import yolo_service
 
 
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(analyze.router)
 app.include_router(mock_analyze.router)
+app.include_router(greenwashing.router)
 
 
 @app.get("/health")
