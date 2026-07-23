@@ -12,6 +12,41 @@
 
 .nav { display: flex; gap: 4px; }
 
+.menuToggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0 9px;
+}
+
+.menuBar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transform-origin: center;
+  transition: transform 0.2s ease, opacity 0.15s ease;
+}
+
+.menuToggleOpen .menuBar:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.menuToggleOpen .menuBar:nth-child(2) {
+  opacity: 0;
+}
+
+.menuToggleOpen .menuBar:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
 .navBtn {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 14px; border-radius: 8px;
@@ -26,9 +61,68 @@
 .main { flex: 1; overflow-y: auto; }
 
 /* Responsive */
+@media (max-width: 900px) {
+  .header {
+    padding: 0 12px;
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    position: sticky;
+  }
+
+  .logo {
+    font-size: 16px;
+    min-height: 56px;
+  }
+
+  .menuToggle {
+    display: flex;
+  }
+
+  .nav {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-6px);
+    padding: 8px 0 12px;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+    transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .navOpen {
+    max-height: 520px;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .navBtn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+
+  .navBtn span:last-child {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav {
+    transition: none;
+  }
+
+  .menuBar {
+    transition: none;
+  }
+}
+
 @media (max-width: 600px) {
   .header { padding: 0 12px; }
   .logo { font-size: 15px; }
-  .navBtn span:last-child { display: none; }
-  .navBtn { padding: 6px 10px; }
 }

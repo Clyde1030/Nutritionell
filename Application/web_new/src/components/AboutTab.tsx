@@ -3,12 +3,31 @@ import s from './AboutTab.module.css';
 
 const CONTACT_EMAIL = 'nutritionell@gmail.com';
 
-// Placeholders — swap in real names, roles, and photo URLs when available.
 const TEAM = [
-  { name: 'Team Member 1', role: 'Role / Title' },
-  { name: 'Team Member 2', role: 'Role / Title' },
-  { name: 'Team Member 3', role: 'Role / Title' },
-  { name: 'Team Member 4', role: 'Role / Title' },
+  {
+    name: 'Steve Lanciotti',
+    role: 'Supply Chain Manager, Booz Allen Hamilton',
+    photoUrl: '/team/steve.png',
+    photoAlt: 'Portrait of Steve Lanciotti',
+  },
+  {
+    name: 'Najmeh Rahimi',
+    role: 'Battery Thermal Analyst',
+    photoUrl: '/team/najmeh.jpg',
+    photoAlt: 'Portrait of Najmeh Rahimi',
+  },
+  {
+    name: 'Priyanka Banerjee',
+    role: 'Software Engineer, Ex-Amazon',
+    photoUrl: '/team/priyanka.jpeg',
+    photoAlt: 'Portrait of Priyanka Banerjee',
+  },
+  {
+    name: 'Yu-Sheng Lee',
+    role: 'Business Data Analyst, Protective Life',
+    photoUrl: '/team/yu-sheng.jpeg',
+    photoAlt: 'Portrait of Yu_Sheng Lee',
+  },
 ];
 
 export default function AboutTab() {
@@ -26,9 +45,11 @@ export default function AboutTab() {
       <div className={s.team}>
         {TEAM.map(m => (
           <div key={m.name} className={s.member}>
-            <div className={s.photo} aria-hidden="true">👤</div>
-            <p className={s.memberName}>{m.name}</p>
-            <p className={s.memberRole}>{m.role}</p>
+            <img className={s.photo} src={m.photoUrl} alt={m.photoAlt} />
+            <div className={s.memberContent}>
+              <p className={s.memberName}>{m.name}</p>
+              <p className={s.memberRole}>{m.role}</p>
+            </div>
           </div>
         ))}
       </div>
