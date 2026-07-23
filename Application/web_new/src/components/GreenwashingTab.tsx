@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import GreenwashingTransparency from './GreenwashingTransparency';
 import { ENDPOINTS } from '@/lib/api';
@@ -40,81 +40,17 @@ const CLAIM_STYLES: Record<ClaimVerdict['verdict'], { label: string; bg: string;
 };
 
 type View = 'upload' | 'analyzing' | 'results';
-const GREENWASHING_STATE_KEY = 'nutritionell_greenwashing_state_v1';
-
-type PersistedGreenwashingState = {
-  view: View;
-  imageUrl: string;
-  result: GreenwashResult | null;
-  errorMsg: string | null;
-};
-
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read image file.'));
-    reader.readAsDataURL(file);
-  });
 
 export default function GreenwashingTab() {
   const [view, setView] = useState<View>('upload');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<GreenwashResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showTransparency, setShowTransparency] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(GREENWASHING_STATE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as PersistedGreenwashingState;
-
-      if (saved.view === 'analyzing') {
-        // Network requests do not survive a browser refresh.
-        setView('upload');
-        setImageUrl(saved.imageUrl ?? '');
-        setErrorMsg('Your previous greenwashing check was interrupted by a page refresh. Please run it again.');
-      } else {
-        setView(saved.view ?? 'upload');
-        setImageUrl(saved.imageUrl ?? '');
-        setResult(saved.result ?? null);
-        setErrorMsg(saved.errorMsg ?? null);
-      }
-    } catch {
-      // Ignore malformed saved state.
-    }
-  }, []);
-
-  useEffect(() => {
-    const hasState = view !== 'upload' || Boolean(imageUrl) || Boolean(result) || Boolean(errorMsg);
-    if (!hasState) {
-      localStorage.removeItem(GREENWASHING_STATE_KEY);
-      return;
-    }
-
-    const payload: PersistedGreenwashingState = {
-      view,
-      imageUrl,
-      result,
-      errorMsg,
-    };
-    localStorage.setItem(GREENWASHING_STATE_KEY, JSON.stringify(payload));
-  }, [view, imageUrl, result, errorMsg]);
-
-  const resetState = () => {
-    setResult(null);
-    setImageUrl('');
-    setErrorMsg(null);
-    setView('upload');
-  };
-
   const analyze = async (file: File) => {
-    setErrorMsg(null);
     setView('analyzing');
-    const url = await fileToDataUrl(file).catch(() => URL.createObjectURL(file));
-    setImageUrl(url);
+    setImageUrl(URL.createObjectURL(file));
     try {
       const fd = new FormData();
       fd.append('image', file);
@@ -124,7 +60,7 @@ export default function GreenwashingTab() {
       setResult(data);
       setView('results');
     } catch (e: any) {
-      setErrorMsg(e.message ?? 'Analysis failed.');
+      alert(e.message ?? 'Analysis failed.');
       setView('upload');
     }
   };
@@ -132,7 +68,7 @@ export default function GreenwashingTab() {
   const handleFile = (file: File | null) => {
     if (!file) return;
     const ok = file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name);
-    if (!ok) { setErrorMsg('Please select an image file (JPEG, PNG, or an iPhone photo).'); return; }
+    if (!ok) { alert('Please select an image file (JPEG, PNG, or an iPhone photo).'); return; }
     analyze(file);
   };
 
@@ -163,7 +99,7 @@ export default function GreenwashingTab() {
             <img src={imageUrl} alt="Uploaded" className={s.previewImg} />
           </div>
         )}
-        <button className={s.newBtn} onClick={resetState}>
+        <button className={s.newBtn} onClick={() => { setResult(null); setImageUrl(''); setView('upload'); }}>
           Try Another Photo
         </button>
       </div>
@@ -299,7 +235,7 @@ export default function GreenwashingTab() {
           </div>
         )}
 
-        <button className={s.newBtn} onClick={resetState}>
+        <button className={s.newBtn} onClick={() => { setResult(null); setImageUrl(''); setView('upload'); }}>
           Analyze Another Product
         </button>
       </div>
@@ -314,12 +250,6 @@ export default function GreenwashingTab() {
           Upload a photo of a single product&apos;s front label. The AI reads its marketing claims and checks them against the product&apos;s actual ingredients and nutrition.
         </p>
       </div>
-
-      {errorMsg && (
-        <div className={s.singleItemNote}>
-          ⚠️ <strong>{errorMsg}</strong>
-        </div>
-      )}
 
       <div className={s.singleItemNote}>
         📸 <strong>One product at a time.</strong> This check sends a single item straight to the AI — no shelf scanning — so frame just one product&apos;s front label for the most accurate read.
