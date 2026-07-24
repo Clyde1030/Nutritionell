@@ -82,7 +82,41 @@ class ProductItem(BaseModel):
     )
 
 
+class Detection(BaseModel):
+    """One YOLO-detected box, mapped to a scored product (or none).
+
+    `status` is the box's role in the pipeline:
+      - "unique"       : first facing of an identified product; it was scored
+      - "duplicate"    : a repeat facing; inherits its unique twin's score/colour
+      - "unidentified" : the product could not be identified
+    `product_index` points into ShelfAnalysisResponse.products for the product
+    whose score colours this box (the product itself for unique, the unique twin
+    for duplicate, the Unidentified entry for unidentified); None if unmapped.
+    """
+    bounding_box: List[float] = Field(min_length=4, max_length=4)
+    status: str = "unique"
+    product_index: Optional[int] = None
+
+
+class PerformanceSummary(BaseModel):
+    """Per-stage timings (ms) + counts, surfaced in the progress + results UI."""
+    detect_ms: Optional[float] = None
+    identify_ms: Optional[float] = None
+    usda_ms: Optional[float] = None
+    scoring_ms: Optional[float] = None
+    analysis_ms: Optional[float] = None      # usda_ms + scoring_ms ("nutrition analysis")
+    total_ms: Optional[float] = None
+    detected_count: int = 0
+    identified_count: int = 0
+    unique_count: int = 0
+    duplicate_count: int = 0
+    unidentified_count: int = 0
+
+
 class ShelfAnalysisResponse(BaseModel):
     products: List[ProductItem]
     total_products_found: int
     analysis_notes: Optional[str] = None
+    # Every detected box (not just scored products), for full-image overlay + dedup colouring.
+    detections: List[Detection] = Field(default_factory=list)
+    performance: Optional[PerformanceSummary] = None

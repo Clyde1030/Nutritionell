@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './page.module.css';
 import HomeTab from '@/components/HomeTab';
 import ProfileTab from '@/components/ProfileTab';
@@ -30,6 +30,10 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('home');
+  // ScanTab stays mounted for within-session persistence, but it reads localStorage
+  // during render — so only mount it AFTER hydration to avoid a server/client mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   return (
     <div className={styles.shell}>
       {/* Top nav */}
@@ -53,7 +57,10 @@ export default function Home() {
         {tab === 'home'         && <HomeTab onNavigate={(t) => setTab(t as Tab)} />}
         {tab === 'profile'      && <ProfileTab />}
         {tab === 'goals'        && <GoalsTab />}
-        {tab === 'scan'         && <ScanTab />}
+        {/* Scan stays mounted (just hidden) so an in-progress or completed scan
+            persists when you switch tabs and come back within the session.
+            Gated on `mounted` so it renders client-only (no SSR hydration mismatch). */}
+        {mounted && <div style={{ display: tab === 'scan' ? 'block' : 'none' }}><ScanTab /></div>}
         {tab === 'plan'         && <PlanTab />}
         {tab === 'greenwashing' && <GreenwashingTab />}
         {tab === 'ingredients'  && <IngredientAnalyticsTab />}

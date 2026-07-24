@@ -1,9 +1,9 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
 import { getProfileId } from '@/lib/storage';
-import type { ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
-import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS } from '@/lib/types';
+import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
+import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
 import CameraCapture from './CameraCapture';
 import TransparencyOverview from './TransparencyOverview';
 import s from './ScanTab.module.css';
@@ -11,30 +11,145 @@ import s from './ScanTab.module.css';
 interface Alternative {
   brand: string;
   product_name: string;
-  similarity_score: number;
-  scoring: 'Great' | 'OK';
   reason: string;
+  better_because: string;
   macros: { calories: number; protein_g: number; fat_g: number; carbs_g: number; sugar_g: number };
 }
 
+// Cache alternatives per product so reopening a detail panel doesn't refetch from Gemini.
+const altCache = new Map<string, { alternatives?: Alternative[]; error?: string }>();
+
 type View = 'picker' | 'analyzing' | 'results';
+
+type Stage =
+  | 'idle' | 'uploading' | 'detecting' | 'detected' | 'identifying'
+  | 'identified' | 'analyzing' | 'scoring' | 'complete';
+
+interface ScanProgress {
+  stage: Stage;
+  detectBoxes: number[][];                              // [ymin,xmin,ymax,xmax]
+  idDets: { bbox: number[]; identified: boolean }[];
+  planDets: { bbox: number[]; status: string }[];
+  detected: number; identified: number;
+  unique: number; duplicate: number; unidentified: number;
+  detectMs?: number; identifyMs?: number;
+  analysisDone: number; analysisTotal: number;
+  stageStart: number;                                   // Date.now() when the active stage began
+}
+
+const EMPTY_PROG: ScanProgress = {
+  stage: 'idle', detectBoxes: [], idDets: [], planDets: [],
+  detected: 0, identified: 0, unique: 0, duplicate: 0, unidentified: 0,
+  analysisDone: 0, analysisTotal: 0, stageStart: 0,
+};
+
+// Which of the 3 headline steps (0=detect, 1=identify, 2=analysis) a stage belongs to.
+const STAGE_STEP: Record<Stage, number> = {
+  idle: 0, uploading: 0, detecting: 0, detected: 0,
+  identifying: 1, identified: 1,
+  analyzing: 2, scoring: 2, complete: 3,
+};
+
+function fmtMs(ms: number): string {
+  if (ms >= 60000) { const m = Math.floor(ms / 60000); const sec = Math.round((ms % 60000) / 1000); return `${m}m ${String(sec).padStart(2, '0')}s`; }
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// Boxes + colours to draw over the image during the live analyzing view.
+function liveStageBoxes(prog: ScanProgress): { bbox: number[]; color: string }[] {
+  if (prog.stage === 'analyzing' || prog.stage === 'scoring') {
+    return prog.planDets.map(d => ({
+      bbox: d.bbox,
+      color: d.status === 'unique' ? STAGE_COLORS.unique
+        : d.status === 'duplicate' ? STAGE_COLORS.duplicate : STAGE_COLORS.unidentified,
+    }));
+  }
+  if (prog.stage === 'identified') {
+    return prog.idDets.map(d => ({ bbox: d.bbox, color: d.identified ? STAGE_COLORS.identified : STAGE_COLORS.notIdentified }));
+  }
+  const boxes = prog.detectBoxes.length ? prog.detectBoxes : prog.idDets.map(d => d.bbox);
+  return boxes.map(b => ({ bbox: b, color: STAGE_COLORS.detected }));
+}
+
+function analysisSub(prog: ScanProgress): string {
+  if (prog.stage === 'scoring') return `Scoring ${prog.unique} product${prog.unique === 1 ? '' : 's'} against your profile…`;
+  if (prog.analysisTotal > 0) return `${prog.unique} unique · ${prog.duplicate} duplicate · ${prog.unidentified} unidentified — collecting data ${prog.analysisDone}/${prog.analysisTotal}`;
+  return 'Preparing nutrition analysis…';
+}
+
+// Final box list: every detection coloured by its mapped product's score
+// (unique→own, duplicate→twin, unidentified→gray). Falls back to one box per product.
+function finalBoxes(result: ShelfAnalysisResponse): { bbox: number[]; color: string; badge: string; product: ProductItem | null }[] {
+  const products = result.products;
+  const dets = result.detections && result.detections.length ? result.detections : null;
+  if (dets) {
+    return dets.map(d => {
+      const p = (d.product_index != null && products[d.product_index]) ? products[d.product_index] : null;
+      const color = p ? SCORE_COLORS[p.scoring] : SCORE_COLORS['Unidentified'];
+      return { bbox: d.bounding_box, color, badge: p ? p.scoring[0] : 'U', product: p };
+    });
+  }
+  return products.map(p => ({ bbox: p.bounding_box, color: SCORE_COLORS[p.scoring], badge: p.scoring[0], product: p }));
+}
 
 export default function ScanTab() {
   const [view, setView] = useState<View>('picker');
-  const [status, setStatus] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<ShelfAnalysisResponse | null>(null);
   const [selected, setSelected] = useState<ProductItem | null>(null);
   const [imgEl, setImgEl] = useState<{ width: number; height: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [recommenderOn, setRecommenderOn] = useState(false);
-  const [recommendations, setRecommendations] = useState<Record<string, Alternative[]>>({});
-  const [loadingRecs, setLoadingRecs] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showTransparency, setShowTransparency] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [detectedCount, setDetectedCount] = useState<number | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [prog, setProg] = useState<ScanProgress>(EMPTY_PROG);
+  const [now, setNow] = useState(0);
+
+  // Live elapsed-time ticker for the active stage (only runs while analyzing).
+  useEffect(() => {
+    if (view !== 'analyzing') return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [view]);
+
+  const handleEvent = (ev: any) => {
+    switch (ev.stage) {
+      case 'detecting':
+        setProg(p => ({ ...p, stage: 'detecting', stageStart: Date.now() }));
+        break;
+      case 'detected':
+        setProg(p => ({ ...p, stage: 'detected', detectBoxes: ev.boxes ?? [], detected: ev.count ?? 0, detectMs: ev.detect_ms }));
+        break;
+      case 'identifying':
+        setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now() }));
+        break;
+      case 'identified':
+        setProg(p => ({
+          ...p, stage: 'identified', idDets: ev.detections ?? [],
+          detected: ev.count ?? p.detected, identified: ev.identified_count ?? 0, identifyMs: ev.identify_ms,
+        }));
+        break;
+      case 'analysis_plan':
+        setProg(p => ({
+          ...p, stage: 'analyzing', stageStart: Date.now(), planDets: ev.detections ?? [],
+          unique: ev.unique_count ?? 0, duplicate: ev.duplicate_count ?? 0, unidentified: ev.unidentified_count ?? 0,
+          analysisTotal: ev.unique_count ?? 0, analysisDone: 0,
+        }));
+        break;
+      case 'analysis_progress':
+        setProg(p => ({ ...p, stage: 'analyzing', analysisDone: ev.done ?? 0, analysisTotal: ev.total ?? p.analysisTotal }));
+        break;
+      case 'scoring':
+        setProg(p => ({ ...p, stage: 'scoring' }));
+        break;
+      case 'complete':
+        setResult(ev.result as ShelfAnalysisResponse);
+        setView('results');
+        break;
+      case 'error':
+        throw new Error(ev.detail ?? 'Analysis failed.');
+    }
+  };
 
   const analyze = async (file: File) => {
     const profileId = getProfileId();
@@ -44,9 +159,9 @@ export default function ScanTab() {
     }
 
     setView('analyzing');
-    setStatus('Uploading image…');
-    setDetectedCount(null);
-    setProgress(null);
+    setResult(null);
+    setSelected(null);
+    setProg({ ...EMPTY_PROG, stage: 'uploading', stageStart: Date.now() });
     const url = URL.createObjectURL(file);
     setImageUrl(url);
 
@@ -59,7 +174,7 @@ export default function ScanTab() {
 
     // Plain (non-streaming) request — used for mock mode and as a fallback.
     const runPlain = async () => {
-      setStatus('Identifying products…');
+      setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now() }));
       const endpoint = USE_MOCK_ANALYZE ? ENDPOINTS.analyzeMock : ENDPOINTS.analyze;
       const r = await fetch(endpoint, { method: 'POST', body: makeForm() });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
@@ -69,16 +184,11 @@ export default function ScanTab() {
     };
 
     try {
-      if (USE_MOCK_ANALYZE) {
-        await runPlain();
-        return;
-      }
+      if (USE_MOCK_ANALYZE) { await runPlain(); return; }
 
-      // Try the streaming endpoint for live progress; fall back to plain if the
-      // endpoint isn't available (e.g. an older backend deploy).
+      // Stream per-stage progress; fall back to plain if the endpoint is unavailable.
       let streamed = false;
       try {
-        setStatus('Uploading image…');
         const r = await fetch(ENDPOINTS.analyzeStream, { method: 'POST', body: makeForm() });
         if (!r.ok || !r.body) throw new Error('stream-unavailable');
         streamed = true;
@@ -86,7 +196,6 @@ export default function ScanTab() {
         const reader = r.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
-        setStatus('Detecting products…');
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -96,65 +205,21 @@ export default function ScanTab() {
             const raw = buf.slice(0, nl); buf = buf.slice(nl + 2);
             const line = raw.split('\n').find(l => l.startsWith('data:'));
             if (!line) continue;
-            const ev = JSON.parse(line.slice(5).trim());
-            if (ev.stage === 'detected') {
-              setDetectedCount(ev.count);
-              setProgress({ done: 0, total: ev.count });
-              setStatus(ev.count ? `Found ${ev.count} product${ev.count === 1 ? '' : 's'} — collecting details…` : 'No products detected…');
-            } else if (ev.stage === 'progress') {
-              setProgress({ done: ev.done, total: ev.total });
-              setStatus(`Collecting details — ${ev.done} of ${ev.total} products`);
-            } else if (ev.stage === 'scoring') {
-              setStatus('Scoring against your profile…');
-            } else if (ev.stage === 'complete') {
-              setResult(ev.result as ShelfAnalysisResponse);
-              setView('results');
-            } else if (ev.stage === 'error') {
-              throw new Error(ev.detail ?? 'Analysis failed.');
-            }
+            handleEvent(JSON.parse(line.slice(5).trim()));
           }
         }
       } catch (streamErr: any) {
-        // Only fall back if streaming itself was unavailable — not on a real
-        // in-stream analysis error (which we surface to the user).
-        if (streamed) throw streamErr;
-        await runPlain();
+        if (streamed) throw streamErr;   // real in-stream error — surface it
+        await runPlain();                // streaming unavailable — fall back
       }
     } catch (e: any) {
       const msg = e?.message ?? 'Unknown error';
-      // A rate/quota/credit limit on the AI service surfaces as 429/503 or
-      // "temporarily unavailable" / "resource exhausted".
       if (/\b429\b|\b503\b|quota|resource[_ ]?exhausted|temporarily unavailable|rate limit/i.test(msg)) {
         setErrorMsg('The AI service is busy or has hit its usage limit right now — this is usually a temporary API rate or credit limit, not your photo. Wait a moment and try again.');
       } else {
         setErrorMsg(`Analysis failed: ${msg}`);
       }
       setView('picker');
-    }
-  };
-
-  const fetchRecommendations = async (products: ProductItem[]) => {
-    const avoidProducts = products.filter(p => p.scoring === "Doesn't Fit");
-    if (avoidProducts.length === 0) return;
-    setLoadingRecs(true);
-    try {
-      const r = await fetch('/api/recommender', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products: avoidProducts }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        setRecommendations(data.recommendations ?? {});
-      }
-    } catch { /* silent — recommendations are optional */ }
-    finally { setLoadingRecs(false); }
-  };
-
-  const handleRecommenderToggle = (on: boolean) => {
-    setRecommenderOn(on);
-    if (on && result && Object.keys(recommendations).length === 0) {
-      fetchRecommendations(result.products);
     }
   };
 
@@ -177,23 +242,73 @@ export default function ScanTab() {
   };
 
   if (view === 'analyzing') {
-    const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+    const boxes = liveStageBoxes(prog);
+    const activeStep = STAGE_STEP[prog.stage] ?? 0;
+    const elapsedActive = now > prog.stageStart ? now - prog.stageStart : 0;
+    const steps = [
+      {
+        label: 'Detecting products (YOLO)',
+        sub: prog.detected ? `${prog.detected} product${prog.detected === 1 ? '' : 's'} detected` : 'Locating products on the shelf…',
+        doneMs: prog.detectMs,
+      },
+      {
+        label: 'Identifying products (Gemini)',
+        sub: (activeStep > 1 || prog.identified)
+          ? `${prog.identified} identified · ${Math.max(prog.detected - prog.identified, 0)} not identified`
+          : 'Reading each product label…',
+        doneMs: prog.identifyMs,
+      },
+      {
+        label: 'Nutrition analysis',
+        sub: analysisSub(prog),
+        doneMs: undefined as number | undefined,
+      },
+    ];
+
     return (
-      <div className={s.analyzing}>
-        <div className={s.spinner} />
-        <p className={s.analyzingTitle}>Analyzing shelf</p>
-        {detectedCount != null && (
-          <p className={s.detectedCount}>{detectedCount} product{detectedCount === 1 ? '' : 's'} detected</p>
-        )}
-        <p className={s.analyzingStatus}>{status}</p>
-        {progress && progress.total > 0 && (
-          <div className={s.progressWrap}>
-            <div className={s.progressTrack}>
-              <div className={s.progressFill} style={{ width: `${pct}%` }} />
-            </div>
-            <p className={s.progressLabel}>{progress.done} of {progress.total} products collected</p>
-          </div>
-        )}
+      <div className={s.resultsPage}>
+        <p className={s.resultsIntro}>Analyzing your shelf… 🔎</p>
+
+        <div className={s.imageWrap}>
+          <img
+            src={imageUrl} alt="Scanning shelf" className={s.resultImg}
+            onLoad={e => setImgEl({ width: e.currentTarget.offsetWidth, height: e.currentTarget.offsetHeight })}
+          />
+          {boxes.map((b, i) => {
+            const [ymin, xmin, ymax, xmax] = b.bbox;
+            return (
+              <div key={i} className={s.liveBox} style={{
+                top: `${ymin * 100}%`, left: `${xmin * 100}%`,
+                width: `${(xmax - xmin) * 100}%`, height: `${(ymax - ymin) * 100}%`,
+                borderColor: b.color, boxShadow: `0 0 0 1px ${b.color}66`,
+              }} />
+            );
+          })}
+        </div>
+
+        <StageLegend stage={prog.stage} />
+
+        <div className={s.stepper}>
+          {steps.map((st, i) => {
+            const status = activeStep > i ? 'done' : activeStep === i ? 'active' : 'pending';
+            const timeStr = status === 'done' && st.doneMs != null ? fmtMs(st.doneMs)
+              : status === 'active' ? fmtMs(elapsedActive) : '';
+            return (
+              <div key={i} className={s.stepRow}>
+                <span className={s.stepIcon} style={{ color: status === 'done' ? 'var(--green)' : status === 'active' ? 'var(--accent)' : 'var(--sub)' }}>
+                  {status === 'done' ? '✓' : status === 'active' ? <span className={s.miniSpinner} /> : '○'}
+                </span>
+                <div className={s.stepBody}>
+                  <div className={s.stepTop}>
+                    <span className={s.stepLabel} style={{ color: status === 'pending' ? 'var(--sub)' : 'var(--text)' }}>{st.label}</span>
+                    {timeStr && <span className={s.stepTime}>{timeStr}</span>}
+                  </div>
+                  {status !== 'pending' && <p className={s.stepSub}>{st.sub}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -217,16 +332,15 @@ export default function ScanTab() {
               setImgEl({ width: el.offsetWidth, height: el.offsetHeight });
             }}
           />
-          {imgEl && result.products.map((p, i) => {
-            const [ymin, xmin, ymax, xmax] = p.bounding_box;
-            const color = SCORE_COLORS[p.scoring];
+          {imgEl && finalBoxes(result).map((b, i) => {
+            const [ymin, xmin, ymax, xmax] = b.bbox;
             return (
-              <button key={i} className={s.bbox} onClick={() => setSelected(p)} style={{
+              <button key={i} className={s.bbox} onClick={() => b.product && setSelected(b.product)} style={{
                 top: `${ymin * 100}%`, left: `${xmin * 100}%`,
                 width: `${(xmax - xmin) * 100}%`, height: `${(ymax - ymin) * 100}%`,
-                borderColor: color,
+                borderColor: b.color, cursor: b.product ? 'pointer' : 'default',
               }}>
-                <span className={s.bboxBadge} style={{ background: color }}>{p.scoring[0]}</span>
+                <span className={s.bboxBadge} style={{ background: b.color }}>{b.badge}</span>
               </button>
             );
           })}
@@ -245,84 +359,11 @@ export default function ScanTab() {
           <button className={s.newScanBtn} onClick={() => { setResult(null); setView('picker'); }}>New scan</button>
         </div>
 
+        {/* Scan performance summary — per-stage timing + product counts */}
+        {result.performance && <PerformanceCard perf={result.performance} />}
+
         {/* Score legend — what each score means, in addition to the Transparency Overview prompt */}
         <ScoreLegend />
-
-        {/* Nutritional Vector Recommender Toggle */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-          padding: '12px 16px', margin: '16px 0',
-        }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
-              Enable Nutritional Vector Recommender
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--sub)' }}>
-              FAISS cosine similarity against USDA macros — suggests healthier alternatives for &quot;Doesn&apos;t Fit&quot; items
-            </p>
-          </div>
-          <button
-            onClick={() => handleRecommenderToggle(!recommenderOn)}
-            style={{
-              width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-              background: recommenderOn ? 'var(--accent)' : 'var(--border)',
-              position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginLeft: 12,
-            }}
-          >
-            <div style={{
-              width: 20, height: 20, borderRadius: 10, background: '#fff',
-              position: 'absolute', top: 3,
-              left: recommenderOn ? 25 : 3,
-              transition: 'left 0.2s',
-            }} />
-          </button>
-        </div>
-
-        {recommenderOn && loadingRecs && (
-          <p style={{ fontSize: 12, color: 'var(--sub)', textAlign: 'center', padding: 8 }}>Loading recommendations...</p>
-        )}
-
-        {recommenderOn && Object.keys(recommendations).length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>
-              Recommended Alternatives
-            </p>
-            {Object.entries(recommendations).map(([productName, alts]) => (
-              <div key={productName} style={{ marginBottom: 14 }}>
-                <p style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600, marginBottom: 6 }}>
-                  Instead of: {productName}
-                </p>
-                {alts.map((alt, i) => (
-                  <div key={i} style={{
-                    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
-                    padding: 12, marginBottom: 6, borderLeft: `3px solid var(--green)`,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                        {alt.brand} — {alt.product_name}
-                      </span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, color: 'var(--green)',
-                        background: 'rgba(34,211,165,0.1)', padding: '2px 8px', borderRadius: 12,
-                      }}>
-                        {Math.round(alt.similarity_score * 100)}% match
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--sub)', marginBottom: 6 }}>{alt.reason}</p>
-                    <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--sub)' }}>
-                      <span>{alt.macros.calories} cal</span>
-                      <span>{alt.macros.protein_g}g protein</span>
-                      <span>{alt.macros.fat_g}g fat</span>
-                      <span>{alt.macros.carbs_g}g carbs</span>
-                      <span>{alt.macros.sugar_g}g sugar</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
 
         <p className={s.listHeader}>Products — click for details</p>
         <div className={s.productList}>
@@ -415,6 +456,57 @@ export default function ScanTab() {
         />
       )}
       {showTransparency && <TransparencyOverview onClose={() => setShowTransparency(false)} />}
+    </div>
+  );
+}
+
+function StageLegend({ stage }: { stage: Stage }) {
+  let items: [string, string][];
+  if (stage === 'identified') {
+    items = [['Identified', STAGE_COLORS.identified], ['Not identified', STAGE_COLORS.notIdentified]];
+  } else if (stage === 'analyzing' || stage === 'scoring') {
+    items = [['Unique (analyzed)', STAGE_COLORS.unique], ['Duplicate', STAGE_COLORS.duplicate], ['Unidentified', STAGE_COLORS.unidentified]];
+  } else {
+    items = [['Detected', STAGE_COLORS.detected]];
+  }
+  return (
+    <div className={s.stageLegend}>
+      {items.map(([label, color]) => (
+        <span key={label} className={s.stageLegendItem}>
+          <span className={s.stageDot} style={{ background: color }} />{label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PerformanceCard({ perf }: { perf: PerformanceSummary }) {
+  const times: [string, number | undefined][] = [
+    ['Detection (YOLO)', perf.detect_ms],
+    ['Identification (Gemini)', perf.identify_ms],
+    ['Nutrition analysis', perf.analysis_ms],
+    ['Total', perf.total_ms],
+  ];
+  const counts: [string, number][] = [
+    ['Detected', perf.detected_count],
+    ['Identified', perf.identified_count],
+    ['Unique (analyzed)', perf.unique_count],
+    ['Duplicates', perf.duplicate_count],
+    ['Unidentified', perf.unidentified_count],
+  ];
+  return (
+    <div className={s.perfCard}>
+      <p className={s.perfTitle}>Scan performance</p>
+      <div className={s.perfCounts}>
+        {counts.map(([l, v]) => (
+          <div key={l} className={s.perfCount}><span className={s.perfCountVal}>{v}</span><span className={s.perfCountLabel}>{l}</span></div>
+        ))}
+      </div>
+      <div className={s.perfTimes}>
+        {times.filter(([, v]) => v != null).map(([l, v]) => (
+          <div key={l} className={l === 'Total' ? s.perfRowBold : s.perfRow}><span>{l}</span><span>{fmtMs(v as number)}</span></div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -532,6 +624,69 @@ function DetailPanel({ product, onClose }: { product: ProductItem; onClose: () =
           {nf.flagged_ingredients.map(ing => <p key={ing} className={s.flaggedItem}>· {ing}</p>)}
         </>}
       </div>
+      <AlternativesSection product={product} />
+    </div>
+  );
+}
+
+function AlternativesSection({ product }: { product: ProductItem }) {
+  const key = `${product.brand}|${product.product_name}|${product.variant ?? ''}`;
+  // Alternatives only make sense for identified products that aren't already a great fit.
+  const show = product.scoring !== 'Unidentified' && product.scoring !== 'Great Fit';
+  const [state, setState] = useState<{ loading: boolean; alternatives?: Alternative[]; error?: string }>(
+    () => altCache.has(key) ? { loading: false, ...altCache.get(key)! } : { loading: show }
+  );
+
+  useEffect(() => {
+    if (!show || altCache.has(key)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/recommender', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product }),
+        });
+        const data = await r.json().catch(() => ({}));
+        const res = r.ok
+          ? { alternatives: (data.alternatives ?? []) as Alternative[] }
+          : { error: data.error ?? `Server ${r.status}`, alternatives: [] as Alternative[] };
+        altCache.set(key, res);
+        if (!cancelled) setState({ loading: false, ...res });
+      } catch (e: any) {
+        const res = { error: e?.message ?? 'Could not load alternatives.', alternatives: [] as Alternative[] };
+        if (!cancelled) setState({ loading: false, ...res });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [key, show, product]);
+
+  if (!show) return null;
+
+  const label = product.scoring === "Doesn't Fit" ? 'Better-fitting alternatives' : 'Alternatives worth considering';
+  return (
+    <div className={s.altSection}>
+      <p className={s.altTitle}>🔄 {label}</p>
+      {state.loading && <p className={s.altLoading}>Finding alternatives tailored to your profile…</p>}
+      {!state.loading && state.error && <p className={s.altError}>Couldn&apos;t load alternatives — {state.error}</p>}
+      {!state.loading && !state.error && (state.alternatives?.length ?? 0) === 0 && (
+        <p className={s.altLoading}>No better alternatives found.</p>
+      )}
+      {(state.alternatives ?? []).map((alt, i) => (
+        <div key={i} className={s.altCard}>
+          <div className={s.altCardTop}>
+            <span className={s.altName}>{alt.brand} — {alt.product_name}</span>
+            {alt.better_because && <span className={s.altBadge}>{alt.better_because}</span>}
+          </div>
+          <p className={s.altReason}>{alt.reason}</p>
+          <div className={s.altMacros}>
+            <span>{alt.macros.calories} cal</span>
+            <span>{alt.macros.protein_g}g protein</span>
+            <span>{alt.macros.fat_g}g fat</span>
+            <span>{alt.macros.carbs_g}g carbs</span>
+            <span>{alt.macros.sugar_g}g sugar</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

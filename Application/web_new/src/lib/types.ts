@@ -50,11 +50,47 @@ export interface ProductItem {
   crop_image?: string;
 }
 
+export type DetectionStatus = 'unique' | 'duplicate' | 'unidentified';
+
+export interface Detection {
+  bounding_box: [number, number, number, number];
+  status: DetectionStatus;
+  // Index into ShelfAnalysisResponse.products whose score colours this box
+  // (self for unique, unique twin for duplicate, Unidentified entry for unidentified).
+  product_index?: number | null;
+}
+
+export interface PerformanceSummary {
+  detect_ms?: number;
+  identify_ms?: number;
+  usda_ms?: number;
+  scoring_ms?: number;
+  analysis_ms?: number;
+  total_ms?: number;
+  detected_count: number;
+  identified_count: number;
+  unique_count: number;
+  duplicate_count: number;
+  unidentified_count: number;
+}
+
 export interface ShelfAnalysisResponse {
   products: ProductItem[];
   total_products_found: number;
   analysis_notes?: string;
+  detections?: Detection[];
+  performance?: PerformanceSummary | null;
 }
+
+// Colours for the live analyzing overlay (distinct from the final SCORE_COLORS).
+export const STAGE_COLORS = {
+  detected: '#94a3b8',      // neutral slate — just-detected boxes
+  identified: '#22c55e',    // green — Gemini identified it
+  notIdentified: '#6b7280', // gray — could not identify
+  unique: '#38bdf8',        // sky — will receive nutrition analysis
+  duplicate: '#fb923c',     // orange — duplicate facing
+  unidentified: '#6b7280',  // gray — unidentified
+} as const;
 
 export interface UserProfile {
   id: string;

@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import time
 from typing import Optional
 
 from google import genai
@@ -15,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.user import UserProfile
 from app.schemas.ai_output import (
+    Detection,
     NutritionalFacts,
+    PerformanceSummary,
     ProductItem,
     ScoreBreakdown,
     ScoreEnum,
@@ -38,6 +41,13 @@ from app.services.yolo_service import yolo_service
 logger = logging.getLogger(__name__)
 
 PHILOSOPHY_MAP = {p["key"]: p for p in DIETARY_PHILOSOPHIES}
+
+# Crop identification is parallelised: the detected crops are split into batches
+# that are sent to Gemini CONCURRENTLY (big latency win vs one serial call over all
+# crops). The semaphore caps how many Gemini requests are in flight at once so we
+# don't trip rate limits.
+IDENTIFY_BATCH_SIZE = 6
+IDENTIFY_MAX_CONCURRENCY = 5
 
 # Codes worth retrying: 429 (rate limited) and the 5xx transient overload codes
 # Gemini returns under load (we've seen live 503 "UNAVAILABLE" during scans).
@@ -844,28 +854,68 @@ class GeminiService:
     # ── Shelf analysis ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _dedupe_identified(products: list[dict]) -> list[dict]:
-        """Collapse duplicate product facings to a unique list.
+    def _is_identified(item: dict) -> bool:
+        """True if Gemini gave this crop a real product name (not Unknown/Unidentified)."""
+        name = (item.get("product_name") or "").strip().lower()
+        return bool(name) and name not in ("unidentified product", "unidentified", "unknown")
 
-        The same product appears many times on a shelf (multiple facings), so we
-        keep one entry per (brand, product_name). Products are already ordered by
-        YOLO confidence, so the first — highest-confidence — occurrence is kept.
-        Unidentified / Unknown items are never merged (they aren't comparable).
+    @classmethod
+    def _plan_dedup(cls, raw: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Split identified facings into (unique-list-to-score, per-box roles).
+
+        Returns:
+          unique_list : the items that go to USDA lookup + scoring (unidentified
+                        items + the FIRST facing of each identified product) — this
+                        is exactly the old `_dedupe_identified` output, same order,
+                        so scoring behaviour is unchanged.
+          roles       : one per input box, aligned to `raw`, each
+                        {"status": "unique"|"duplicate"|"unidentified",
+                         "product_index": <index into unique_list / products>}.
+        Duplicate facings are NOT scored; they inherit their unique twin's score.
         """
-        seen: set[tuple[str, str]] = set()
-        out: list[dict] = []
-        for p in products:
-            name = (p.get("product_name") or "").strip().lower()
-            brand = (p.get("brand") or "").strip().lower()
-            if not name or name in ("unidentified product", "unidentified", "unknown"):
-                out.append(p)
+        unique_list: list[dict] = []
+        key_to_idx: dict[tuple[str, str], int] = {}
+        roles: list[dict] = []
+        for p in raw:
+            if not cls._is_identified(p):
+                idx = len(unique_list); unique_list.append(p)
+                roles.append({"status": "unidentified", "product_index": idx})
                 continue
-            key = (brand, name)
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(p)
+            key = ((p.get("brand") or "").strip().lower(), (p.get("product_name") or "").strip().lower())
+            if key in key_to_idx:
+                roles.append({"status": "duplicate", "product_index": key_to_idx[key]})
+            else:
+                idx = len(unique_list); unique_list.append(p); key_to_idx[key] = idx
+                roles.append({"status": "unique", "product_index": idx})
+        return unique_list, roles
+
+    @staticmethod
+    def _build_detections(raw: list[dict], roles: list[dict]) -> list[Detection]:
+        out: list[Detection] = []
+        for item, role in zip(raw, roles):
+            bbox = item.get("bounding_box") or [0.0, 0.0, 1.0, 1.0]
+            try:
+                bbox = [float(v) for v in bbox[:4]]
+                while len(bbox) < 4:
+                    bbox.append(0.0)
+            except Exception:
+                bbox = [0.0, 0.0, 1.0, 1.0]
+            out.append(Detection(bounding_box=bbox, status=role["status"], product_index=role["product_index"]))
         return out
+
+    def _detect(self, image_bytes: bytes) -> list[dict]:
+        """YOLO localisation only — returns pixel boxes sorted by confidence, capped. [] if none."""
+        try:
+            boxes = yolo_service.detect(
+                image_bytes,
+                conf=settings.yolo_conf_threshold,
+                iou=settings.yolo_iou_threshold,
+            )
+        except Exception as exc:
+            logger.error("YOLO detection failed, will fall back to whole-image vision pass: %s", exc)
+            return []
+        boxes.sort(key=lambda b: b["confidence"], reverse=True)
+        return boxes[: settings.yolo_max_detections]
 
     async def analyze_shelf(
         self,
@@ -875,10 +925,10 @@ class GeminiService:
         db: AsyncSession,
     ) -> ShelfAnalysisResponse:
         raw_products = await self._detect_and_identify(image_bytes, mime_type, profile)
-        raw_products = self._dedupe_identified(raw_products)
+        unique_list, roles = self._plan_dedup(raw_products)
 
         enriched = []
-        for item in raw_products:
+        for item in unique_list:
             usda_food = await rag_service.lookup(
                 product_name=item.get("product_name", ""),
                 brand=item.get("brand", ""),
@@ -888,9 +938,11 @@ class GeminiService:
             enriched.append(item)
 
         products = await self._scoring_pass(enriched, profile)
+        detections = self._build_detections(raw_products, roles)
         return ShelfAnalysisResponse(
             products=products,
             total_products_found=len(products),
+            detections=detections,
         )
 
     async def analyze_shelf_stream(
@@ -900,20 +952,56 @@ class GeminiService:
         profile: UserProfile,
         db: AsyncSession,
     ):
-        """Same pipeline as analyze_shelf, but yields progress events for the UI.
+        """Same pipeline as analyze_shelf, but yields a progress event at every stage.
 
-        Yields dicts: {"stage": "detected", "count": N},
-                      {"stage": "progress", "done": i, "total": N},
-                      {"stage": "scoring"},
-                      {"stage": "complete", "result": <ShelfAnalysisResponse json>}.
+        Event stages (each a dict with "stage" + fields):
+          detecting                         -> YOLO started
+          detected      count, boxes, detect_ms
+          identifying   total               -> Gemini identification started
+          identified    count, identified_count, detections[{bbox,identified}], identify_ms
+          analysis_plan unique_count, duplicate_count, unidentified_count, detections[{bbox,status}]
+          analysis_progress  done, total    -> per unique product (USDA lookup)
+          scoring
+          complete      result (ShelfAnalysisResponse json, incl. detections + performance)
         """
-        raw_products = await self._detect_and_identify(image_bytes, mime_type, profile)
-        raw_products = self._dedupe_identified(raw_products)
-        total = len(raw_products)
-        yield {"stage": "detected", "count": total}
+        t0 = time.monotonic()
 
+        # ── Stage 1: detection (YOLO) ──────────────────────────────────────────
+        yield {"stage": "detecting"}
+        t_det = time.monotonic()
+        boxes = self._detect(image_bytes)
+        detect_ms = (time.monotonic() - t_det) * 1000
+        img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
+        det_boxes = [pixel_bbox_to_normalized(b["bbox"], img_w, img_h) for b in boxes]
+        yield {"stage": "detected", "count": len(boxes), "boxes": det_boxes, "detect_ms": round(detect_ms)}
+
+        # ── Stage 2: identification (Gemini) ───────────────────────────────────
+        yield {"stage": "identifying", "total": len(boxes)}
+        t_id = time.monotonic()
+        if boxes:
+            raw = await self._vision_pass_from_crops(image_bytes, boxes, profile)
+        else:
+            raw = await self._vision_pass(image_bytes, mime_type, profile)   # whole-image fallback
+        identify_ms = (time.monotonic() - t_id) * 1000
+        identified_count = sum(1 for it in raw if self._is_identified(it))
+        id_dets = [{"bbox": (it.get("bounding_box") or [0, 0, 1, 1]), "identified": self._is_identified(it)} for it in raw]
+        yield {"stage": "identified", "count": len(raw), "identified_count": identified_count,
+               "detections": id_dets, "identify_ms": round(identify_ms)}
+
+        # ── Stage 3: dedup / analysis plan ─────────────────────────────────────
+        unique_list, roles = self._plan_dedup(raw)
+        unique_count = sum(1 for r in roles if r["status"] == "unique")
+        dup_count = sum(1 for r in roles if r["status"] == "duplicate")
+        unid_count = sum(1 for r in roles if r["status"] == "unidentified")
+        plan_dets = [{"bbox": (raw[i].get("bounding_box") or [0, 0, 1, 1]), "status": roles[i]["status"]}
+                     for i in range(len(raw))]
+        yield {"stage": "analysis_plan", "unique_count": unique_count, "duplicate_count": dup_count,
+               "unidentified_count": unid_count, "detections": plan_dets}
+
+        # ── Stage 4: nutrition data (USDA lookup per unique product) ────────────
+        t_usda = time.monotonic()
         enriched = []
-        for i, item in enumerate(raw_products):
+        for i, item in enumerate(unique_list):
             usda_food = await rag_service.lookup(
                 product_name=item.get("product_name", ""),
                 brand=item.get("brand", ""),
@@ -921,11 +1009,27 @@ class GeminiService:
             )
             item["_usda"] = usda_food
             enriched.append(item)
-            yield {"stage": "progress", "done": i + 1, "total": total}
+            yield {"stage": "analysis_progress", "done": i + 1, "total": len(unique_list)}
+        usda_ms = (time.monotonic() - t_usda) * 1000
 
+        # ── Stage 5: scoring (Gemini) ──────────────────────────────────────────
         yield {"stage": "scoring"}
+        t_score = time.monotonic()
         products = await self._scoring_pass(enriched, profile)
-        response = ShelfAnalysisResponse(products=products, total_products_found=len(products))
+        scoring_ms = (time.monotonic() - t_score) * 1000
+
+        detections = self._build_detections(raw, roles)
+        performance = PerformanceSummary(
+            detect_ms=round(detect_ms), identify_ms=round(identify_ms), usda_ms=round(usda_ms),
+            scoring_ms=round(scoring_ms), analysis_ms=round(usda_ms + scoring_ms),
+            total_ms=round((time.monotonic() - t0) * 1000),
+            detected_count=len(raw), identified_count=identified_count,
+            unique_count=unique_count, duplicate_count=dup_count, unidentified_count=unid_count,
+        )
+        response = ShelfAnalysisResponse(
+            products=products, total_products_found=len(products),
+            detections=detections, performance=performance,
+        )
         yield {"stage": "complete", "result": response.model_dump(mode="json")}
 
     async def _detect_and_identify(
@@ -955,33 +1059,46 @@ class GeminiService:
 
         return await self._vision_pass_from_crops(image_bytes, boxes, profile)
 
+    async def _identify_batch(self, batch_crops: list[bytes], sem: asyncio.Semaphore) -> list[dict]:
+        """Identify one batch of crops in a single Gemini call. Returns exactly
+        len(batch_crops) items (empty dicts pad any short/failed parse).
+
+        API errors (429/quota, persistent 5xx) are allowed to propagate so the
+        endpoint's quota handling can surface them; only JSON parsing is caught here.
+        """
+        prompt = _build_crop_identification_prompt(len(batch_crops))
+        contents: list = [prompt]
+        for j, crop_bytes in enumerate(batch_crops):
+            contents.append(f"Crop {j + 1}:")
+            contents.append(types.Part.from_bytes(data=crop_bytes, mime_type="image/jpeg"))
+
+        async with sem:
+            response = await self._generate_content(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(temperature=0.1, response_mime_type="application/json"),
+            )
+
+        try:
+            parsed = json.loads(response.text)
+            if not isinstance(parsed, list):
+                parsed = parsed.get("products", parsed.get("items", [parsed]))
+        except Exception as exc:
+            logger.error("Crop identification batch parse error: %s", exc)
+            parsed = []
+        return [(parsed[k] if k < len(parsed) else {}) for k in range(len(batch_crops))]
+
     async def _vision_pass_from_crops(
         self, image_bytes: bytes, boxes: list[dict], profile: UserProfile
     ) -> list[dict]:
         img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
         crops = crop_boxes(image_bytes, boxes)
 
-        system_prompt = _build_crop_identification_prompt(len(crops))
-        contents: list = [system_prompt]
-        for i, crop_bytes in enumerate(crops):
-            contents.append(f"Crop {i + 1}:")
-            contents.append(types.Part.from_bytes(data=crop_bytes, mime_type="image/jpeg"))
-
-        response = await self._generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                temperature=0.1, response_mime_type="application/json"
-            ),
-        )
-
-        try:
-            raw = json.loads(response.text)
-            if not isinstance(raw, list):
-                raw = raw.get("products", raw.get("items", [raw]))
-        except Exception as exc:
-            logger.error("Crop identification pass parse error: %s", exc)
-            raw = []
+        # Identify crops in CONCURRENT batches (instead of one serial call over all crops).
+        batches = [crops[i:i + IDENTIFY_BATCH_SIZE] for i in range(0, len(crops), IDENTIFY_BATCH_SIZE)]
+        sem = asyncio.Semaphore(IDENTIFY_MAX_CONCURRENCY)
+        batch_results = await asyncio.gather(*(self._identify_batch(b, sem) for b in batches))
+        raw = [item for batch in batch_results for item in batch]   # flatten -> original crop order
 
         products = []
         for i, box in enumerate(boxes):
