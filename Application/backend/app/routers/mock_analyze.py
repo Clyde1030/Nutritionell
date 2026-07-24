@@ -7,7 +7,8 @@ import io
 from fastapi import APIRouter, File, Form, UploadFile
 from PIL import Image
 from app.schemas.ai_output import (
-    NutritionalFacts, ProductItem, ScoreBreakdown, ScoreEnum, ShelfAnalysisResponse,
+    Detection, NutritionalFacts, PerformanceSummary, ProductItem,
+    ScoreBreakdown, ScoreEnum, ShelfAnalysisResponse,
 )
 from app.services.image_utils import encode_jpeg_data_uri
 
@@ -166,6 +167,21 @@ MOCK_RESULT = ShelfAnalysisResponse(
             nutritional_facts=NutritionalFacts(flagged_ingredients=[], detected_ingredients=[]),
         ),
     ],
+    detections=[
+        Detection(bounding_box=[0.05, 0.02, 0.45, 0.30], status="unique", product_index=0),
+        Detection(bounding_box=[0.05, 0.32, 0.45, 0.62], status="unique", product_index=1),
+        Detection(bounding_box=[0.90, 0.02, 0.98, 0.20], status="unique", product_index=2),
+        Detection(bounding_box=[0.48, 0.02, 0.88, 0.47], status="unique", product_index=3),
+        Detection(bounding_box=[0.48, 0.52, 0.88, 0.95], status="unidentified", product_index=4),
+        # two duplicate facings -> inherit their unique twin's score/colour
+        Detection(bounding_box=[0.05, 0.63, 0.45, 0.92], status="duplicate", product_index=3),
+        Detection(bounding_box=[0.47, 0.02, 0.72, 0.30], status="duplicate", product_index=0),
+    ],
+    performance=PerformanceSummary(
+        detect_ms=180, identify_ms=42000, usda_ms=3200, scoring_ms=9800,
+        analysis_ms=13000, total_ms=55380,
+        detected_count=7, identified_count=6, unique_count=4, duplicate_count=2, unidentified_count=1,
+    ),
 )
 
 

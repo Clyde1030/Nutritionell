@@ -1,89 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
+
+export const runtime = 'nodejs';
+
+// Real, on-demand alternative recommender: given ONE scanned product and WHY it
+// scored the way it did for this user, Gemini suggests better-fitting, widely
+// available alternatives in the same category. This replaces the old hardcoded
+// dummy database. Called per-product from the Scan detail panel.
 
 interface Alternative {
   brand: string;
   product_name: string;
-  similarity_score: number;
-  scoring: 'Great' | 'OK';
   reason: string;
+  better_because: string;
   macros: { calories: number; protein_g: number; fat_g: number; carbs_g: number; sugar_g: number };
 }
 
-const ALTERNATIVES_DB: Record<string, Alternative[]> = {
-  'cereal': [
-    {
-      brand: 'Nature\'s Path', product_name: 'Heritage Flakes',
-      similarity_score: 0.91, scoring: 'Great',
-      reason: 'Organic whole grains, only 4g sugar, high fiber. Closest macro profile to your avoided product with dramatically better ingredient quality.',
-      macros: { calories: 120, protein_g: 4, fat_g: 1, carbs_g: 24, sugar_g: 4 },
-    },
-    {
-      brand: 'Barbara\'s', product_name: 'Morning Oat Crunch',
-      similarity_score: 0.87, scoring: 'OK',
-      reason: 'Similar crunch texture, 6g sugar vs 12g. No HFCS. NOVA 3 but cleaner ingredient list.',
-      macros: { calories: 130, protein_g: 3, fat_g: 1.5, carbs_g: 26, sugar_g: 6 },
-    },
-  ],
-  'snack bar': [
-    {
-      brand: 'RXBar', product_name: 'Chocolate Sea Salt',
-      similarity_score: 0.89, scoring: 'Great',
-      reason: 'Whole food ingredients only (egg whites, dates, nuts). 12g protein, 13g sugar from dates only. NOVA 1.',
-      macros: { calories: 210, protein_g: 12, fat_g: 9, carbs_g: 24, sugar_g: 13 },
-    },
-    {
-      brand: 'Epic', product_name: 'Beef Habanero Cherry Bar',
-      similarity_score: 0.82, scoring: 'Great',
-      reason: 'Grass-fed beef based, 10g protein, only 9g sugar. Zero seed oils, minimal processing.',
-      macros: { calories: 130, protein_g: 10, fat_g: 5, carbs_g: 13, sugar_g: 9 },
-    },
-  ],
-  'default': [
-    {
-      brand: 'Simple Mills', product_name: 'Almond Flour Crackers',
-      similarity_score: 0.84, scoring: 'Great',
-      reason: 'Clean almond flour base, no seed oils, low sugar. Similar satisfying crunch with dramatically better ingredients.',
-      macros: { calories: 150, protein_g: 3, fat_g: 8, carbs_g: 17, sugar_g: 1 },
-    },
-    {
-      brand: 'Hu Kitchen', product_name: 'Simple Dark Chocolate',
-      similarity_score: 0.79, scoring: 'Great',
-      reason: 'Organic cacao, coconut sugar only. No emulsifiers, no soy lecithin. Rich flavor with cleaner profile.',
-      macros: { calories: 200, protein_g: 3, fat_g: 15, carbs_g: 17, sugar_g: 11 },
-    },
-  ],
-};
+const PROMPT = (productJson: string) => `You are a grocery nutrition assistant recommending better product alternatives.
 
-function categorize(productName: string): string {
-  const lower = productName.toLowerCase();
-  if (lower.includes('cereal') || lower.includes('flakes') || lower.includes('cheerios') || lower.includes('oats')) return 'cereal';
-  if (lower.includes('bar') || lower.includes('granola')) return 'snack bar';
-  return 'default';
+You are given ONE product the user scanned, including how it scored for THIS user and the reasoning explaining why (which reflects the user's dietary philosophy, allergies, avoided ingredients, processing tolerance, and health goals).
+
+PRODUCT (JSON):
+${productJson}
+
+Suggest 3 REAL, widely-available alternative products in the SAME category that would fit this user BETTER, directly addressing the reasons this product fell short (e.g. if it was flagged for high added sugar or a specific avoided ingredient, pick alternatives that fix exactly that).
+
+Rules:
+- Recommend real commercial products (brand + product name) that actually exist. Do NOT invent products.
+- Each alternative must genuinely improve on the specific issues in the reasoning — do not suggest something that shares the same problem or triggers the same allergy/avoided ingredient.
+- Use canonical/typical macros for each product; approximate is fine.
+- Keep it in the same product category (a cereal alternative for a cereal, a bar for a bar).
+
+Return ONLY a JSON object (no markdown) with this exact shape:
+{
+  "alternatives": [
+    {
+      "brand": string,
+      "product_name": string,
+      "reason": string,            // 1 sentence: what this product is / why it's a good pick
+      "better_because": string,    // 1 short phrase: the specific improvement vs the scanned product
+      "macros": { "calories": number, "protein_g": number, "fat_g": number, "carbs_g": number, "sugar_g": number }
+    }
+  ]
 }
+
+Return ONLY the JSON object.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { products } = await req.json();
-    if (!Array.isArray(products)) {
-      return NextResponse.json({ error: 'Missing products array' }, { status: 400 });
+    const body = await req.json();
+    const product = body?.product;
+    if (!product) return NextResponse.json({ error: 'Missing product' }, { status: 400 });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Server is missing GEMINI_API_KEY.', alternatives: [] }, { status: 500 });
     }
 
-    // TODO: Replace mock with real FAISS/cosine similarity against USDA macro vectors.
-    // Pipeline: embed each product's macro profile → query nearest neighbors from
-    // a pre-built USDA vector index → filter to "Great"/"OK" scoring only.
-    await new Promise(r => setTimeout(r, 600));
+    // Trim the product to the fields that matter for a recommendation (keeps the prompt small).
+    const nf = product.nutritional_facts ?? {};
+    const slim = {
+      brand: product.brand, product_name: product.product_name, variant: product.variant ?? null,
+      scoring: product.scoring, reasoning: product.reasoning,
+      flagged_ingredients: nf.flagged_ingredients ?? [],
+      allergens: product.allergens ?? [], dietary_tags: product.dietary_tags ?? [],
+      processing_level: product.processing_level ?? null,
+      nutrition: {
+        calories: nf.calories, protein_g: nf.protein_g, total_fat_g: nf.total_fat_g,
+        total_carbohydrate_g: nf.total_carbohydrate_g, total_sugars_g: nf.total_sugars_g,
+        added_sugars_g: nf.added_sugars_g, sodium_mg: nf.sodium_mg,
+      },
+    };
 
-    const recommendations: Record<string, Alternative[]> = {};
-    for (const product of products) {
-      if (product.scoring === "Doesn't Fit") {
-        const category = categorize(product.product_name);
-        recommendations[product.product_name] = ALTERNATIVES_DB[category] ?? ALTERNATIVES_DB['default'];
-      }
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [{ text: PROMPT(JSON.stringify(slim)) }],
+      config: { responseMimeType: 'application/json', temperature: 0.4 },
+    });
+
+    const text = response.text ?? '';
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('Could not parse the AI response.');
+      parsed = JSON.parse(m[0]);
     }
 
-    return NextResponse.json({ recommendations });
+    const alternatives: Alternative[] = Array.isArray(parsed?.alternatives) ? parsed.alternatives : [];
+    return NextResponse.json({ alternatives });
   } catch (err: any) {
-    console.error('Recommender error:', err.message);
-    return NextResponse.json({ error: err.message ?? 'Unknown error' }, { status: 500 });
+    const msg = String(err?.message ?? err);
+    const isQuota = /\b429\b|quota|resource[_ ]?exhausted|rate limit/i.test(msg);
+    console.error('Recommender error:', msg);
+    return NextResponse.json(
+      {
+        error: isQuota
+          ? 'AI usage limit reached (Gemini quota or rate limit). Try again in a moment.'
+          : `Could not load alternatives: ${msg}`,
+        alternatives: [],
+      },
+      { status: isQuota ? 429 : 500 },
+    );
   }
 }
