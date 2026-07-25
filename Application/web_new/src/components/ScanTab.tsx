@@ -727,14 +727,14 @@ function AlternativesSection({ product }: { product: ProductItem }) {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch('/api/recommender', {
+        const r = await fetch(ENDPOINTS.recommender, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ product }),
         });
         const data = await r.json().catch(() => ({}));
         const res = r.ok
           ? { alternatives: (data.alternatives ?? []) as Alternative[] }
-          : { error: data.error ?? `Server ${r.status}`, alternatives: [] as Alternative[] };
+          : { error: data.detail ?? data.error ?? `Server ${r.status}`, alternatives: [] as Alternative[] };
         altCache.set(key, res);
         if (!cancelled) setState({ loading: false, ...res });
       } catch (e: any) {
