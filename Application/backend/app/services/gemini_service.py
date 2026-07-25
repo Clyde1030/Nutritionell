@@ -947,6 +947,42 @@ _GREENWASHING_RESPONSE_DEFAULTS = {
     "radar_data": [],
 }
 
+# ── Alternative-product recommender ──────────────────────────────────────────
+# Ported verbatim from web_new/src/app/api/recommender/route.ts: that Next.js
+# route ran this same Gemini call from Amplify's SSR compute, which has a hard
+# unconfigurable 30s timeout and no retry logic, so a slow/transient Gemini
+# response surfaced to users as a timeout on the Scan tab's alternatives panel.
+def _build_recommender_prompt(product_json: str) -> str:
+    return f"""You are a grocery nutrition assistant recommending better product alternatives.
+
+You are given ONE product the user scanned, including how it scored for THIS user and the reasoning explaining why (which reflects the user's dietary philosophy, allergies, avoided ingredients, processing tolerance, and health goals).
+
+PRODUCT (JSON):
+{product_json}
+
+Suggest 3 REAL, widely-available alternative products in the SAME category that would fit this user BETTER, directly addressing the reasons this product fell short (e.g. if it was flagged for high added sugar or a specific avoided ingredient, pick alternatives that fix exactly that).
+
+Rules:
+- Recommend real commercial products (brand + product name) that actually exist. Do NOT invent products.
+- Each alternative must genuinely improve on the specific issues in the reasoning — do not suggest something that shares the same problem or triggers the same allergy/avoided ingredient.
+- Use canonical/typical macros for each product; approximate is fine.
+- Keep it in the same product category (a cereal alternative for a cereal, a bar for a bar).
+
+Return ONLY a JSON object (no markdown) with this exact shape:
+{{
+  "alternatives": [
+    {{
+      "brand": string,
+      "product_name": string,
+      "reason": string,            // 1 sentence: what this product is / why it's a good pick
+      "better_because": string,    // 1 short phrase: the specific improvement vs the scanned product
+      "macros": {{ "calories": number, "protein_g": number, "fat_g": number, "carbs_g": number, "sugar_g": number }}
+    }}
+  ]
+}}
+
+Return ONLY the JSON object."""
+
 
 class GeminiService:
     def __init__(self):
@@ -1502,3 +1538,45 @@ Return ONLY the JSON object. No markdown."""
 
         # Guard the fields the UI reads so a partial response can't crash it.
         return {**_GREENWASHING_RESPONSE_DEFAULTS, **parsed}
+
+    # ── Alternative-product recommender ───────────────────────────────────────
+
+    async def recommend_alternatives(self, product: dict) -> dict:
+        nf = product.get("nutritional_facts") or {}
+        slim = {
+            "brand": product.get("brand"),
+            "product_name": product.get("product_name"),
+            "variant": product.get("variant"),
+            "scoring": product.get("scoring"),
+            "reasoning": product.get("reasoning"),
+            "flagged_ingredients": nf.get("flagged_ingredients", []),
+            "allergens": product.get("allergens", []),
+            "dietary_tags": product.get("dietary_tags", []),
+            "processing_level": product.get("processing_level"),
+            "nutrition": {
+                "calories": nf.get("calories"),
+                "protein_g": nf.get("protein_g"),
+                "total_fat_g": nf.get("total_fat_g"),
+                "total_carbohydrate_g": nf.get("total_carbohydrate_g"),
+                "total_sugars_g": nf.get("total_sugars_g"),
+                "added_sugars_g": nf.get("added_sugars_g"),
+                "sodium_mg": nf.get("sodium_mg"),
+            },
+        }
+
+        response = await self._generate_content(
+            model="gemini-2.5-flash",
+            contents=[_build_recommender_prompt(json.dumps(slim))],
+            config=types.GenerateContentConfig(
+                temperature=0.4, response_mime_type="application/json"
+            ),
+        )
+
+        try:
+            parsed = json.loads(response.text)
+        except Exception as exc:
+            logger.error("Recommender parse error: %s", exc)
+            parsed = {}
+
+        alternatives = parsed.get("alternatives", [])
+        return {"alternatives": alternatives if isinstance(alternatives, list) else []}
