@@ -102,9 +102,10 @@ class PerformanceSummary(BaseModel):
     """Per-stage timings (ms) + counts, surfaced in the progress + results UI."""
     detect_ms: Optional[float] = None
     identify_ms: Optional[float] = None
+    enrich_ms: Optional[float] = None        # canonical ingredient/nutrition lookup (I2)
     usda_ms: Optional[float] = None
     scoring_ms: Optional[float] = None
-    analysis_ms: Optional[float] = None      # usda_ms + scoring_ms ("nutrition analysis")
+    analysis_ms: Optional[float] = None      # enrich_ms + usda_ms + scoring_ms ("nutrition analysis")
     total_ms: Optional[float] = None
     detected_count: int = 0
     identified_count: int = 0

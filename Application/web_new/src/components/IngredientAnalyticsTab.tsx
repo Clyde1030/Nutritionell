@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import s from './IngredientAnalyticsTab.module.css';
 import { INGREDIENT_DIRECTORY } from '@/lib/concern-scoring';
+import { useChartColors } from '@/lib/chartColors';
 
 // ── Types ──
 
@@ -102,6 +103,7 @@ const FILTER_KEYWORDS: Record<DirectoryFilter, string[]> = {
 // ── Main Component ──
 
 export default function IngredientAnalyticsTab() {
+  const chart = useChartColors();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SafetyProfile | null>(null);
@@ -372,11 +374,11 @@ export default function IngredientAnalyticsTab() {
               <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>Nutrient Radar</p>
               <ResponsiveContainer width="100%" height={250}>
                 <RadarChart data={radarData}>
-                  <PolarGrid stroke="#1f1f2e" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fill: '#9896b0', fontSize: 11 }} />
+                  <PolarGrid stroke={chart.border} />
+                  <PolarAngleAxis dataKey="metric" tick={{ fill: chart.sub, fontSize: 11 }} />
                   <PolarRadiusAxis tick={false} axisLine={false} />
                   <Radar name="Profile" dataKey="value" stroke="#7c6aff" fill="#7c6aff" fillOpacity={0.25} />
-                  <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }}
+                  <Tooltip contentStyle={{ background: chart.card, border: `1px solid ${chart.border}`, borderRadius: 8, color: chart.text, fontSize: 12 }}
                     formatter={(_: any, __: any, props: any) => {
                       const d = props.payload;
                       const unit = d.metric === 'Calories' ? 'kcal' : d.metric === 'Sodium' ? 'mg' : 'g';
@@ -451,7 +453,7 @@ export default function IngredientAnalyticsTab() {
                       <Pie data={cats.slice(0, 10)} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={110} innerRadius={50} paddingAngle={2} label={false}>
                         {cats.slice(0, 10).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }}
+                      <Tooltip contentStyle={{ background: chart.card, border: `1px solid ${chart.border}`, borderRadius: 8, color: chart.text, fontSize: 12 }}
                         formatter={(value: any, name: any) => [`${value} products`, name]} />
                     </PieChart>
                   </ResponsiveContainer>
@@ -497,9 +499,9 @@ export default function IngredientAnalyticsTab() {
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>Where This Ingredient Is Found</p>
             <ResponsiveContainer width="100%" height={Math.max(200, cats.length * 32)}>
               <BarChart data={cats.slice(0, 10)} layout="vertical" margin={{ left: 120 }}>
-                <XAxis type="number" tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
-                <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }}
+                <XAxis type="number" tick={{ fill: chart.sub, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: chart.sub, fontSize: 11 }} axisLine={false} tickLine={false} width={120} />
+                <Tooltip contentStyle={{ background: chart.card, border: `1px solid ${chart.border}`, borderRadius: 8, color: chart.text, fontSize: 12 }}
                   formatter={(value: any) => [`${value} products`, 'Count']} />
                 <Bar dataKey="count" fill="#7c6aff" radius={[0, 4, 4, 0]} />
               </BarChart>

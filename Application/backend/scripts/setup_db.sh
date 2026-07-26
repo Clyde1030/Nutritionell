@@ -24,8 +24,6 @@ python scripts/create_tables.py
 
 echo "==> Running column migrations..."
 python scripts/migrate_add_columns.py
-python scripts/migrate_add_sex_column.py
-python scripts/migrate_add_age_group_column.py
 
 echo "==> Seeding USDA data..."
 python scripts/seed_usda.py
