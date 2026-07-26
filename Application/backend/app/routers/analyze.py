@@ -102,12 +102,16 @@ def _gemini_error_detail(exc: genai_errors.APIError) -> tuple[int, str]:
 async def analyze_shelf(
     image: UploadFile = File(..., description="Photo of a grocery shelf"),
     profile_id: str = Form(..., description="UUID of the user profile to use for scoring"),
+    max_detections: int | None = Form(
+        None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     image_bytes, mime_type, profile = await _prepare_request(image, profile_id, db)
     try:
         return await gemini_service.analyze_shelf(
             image_bytes=image_bytes, mime_type=mime_type, profile=profile, db=db,
+            max_detections=max_detections,
         )
     except genai_errors.APIError as exc:
         logger.error("Gemini API error during shelf analysis: %s", exc)
@@ -119,6 +123,9 @@ async def analyze_shelf(
 async def analyze_shelf_stream(
     image: UploadFile = File(..., description="Photo of a grocery shelf"),
     profile_id: str = Form(..., description="UUID of the user profile to use for scoring"),
+    max_detections: int | None = Form(
+        None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Server-Sent-Events stream of analysis progress.
@@ -132,6 +139,7 @@ async def analyze_shelf_stream(
         try:
             async for ev in gemini_service.analyze_shelf_stream(
                 image_bytes=image_bytes, mime_type=mime_type, profile=profile, db=db,
+                max_detections=max_detections,
             ):
                 yield f"data: {json.dumps(ev)}\n\n"
         except genai_errors.APIError as exc:

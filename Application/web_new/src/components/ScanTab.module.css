@@ -9,6 +9,8 @@
 .dropTitle { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
 .dropSub { font-size: 12px; color: var(--sub); }
 .fileInput { display: none; }
+.scanSettingNote { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--sub); }
+.scanSettingNote strong { color: var(--text); font-weight: 700; }
 .cameraBtn { width: 100%; margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 600; color: var(--sub); }
 .cameraBtn:hover { border-color: var(--sub); color: var(--text); }
 .howCard { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-top: 24px; }
@@ -19,8 +21,8 @@
 .warning { background: #1a0d0d; border: 1px solid #4a1515; border-radius: 12px; padding: 12px; margin-top: 16px; color: #f87171; font-size: 13px; }
 
 /* Error banner */
-.errorBanner { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; background: #1a0d0d; border: 1px solid #4a1515; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: #f87171; font-size: 13px; line-height: 1.5; }
-.errorDismiss { color: #f87171; background: transparent; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
+.errorBanner { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; background: var(--surface); border: 1px solid var(--red); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: var(--red); font-size: 13px; line-height: 1.5; }
+.errorDismiss { color: var(--red); background: transparent; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
 
 /* Transparency button */
 .transparencyBtn { width: 100%; margin-top: 12px; background: transparent; border: 1px solid var(--border); border-radius: 14px; padding: 12px; font-size: 13px; font-weight: 600; color: var(--accent); transition: all 0.15s; }
@@ -76,9 +78,35 @@
 .chip { border: 1.5px solid; border-radius: 10px; padding: 5px 10px; text-align: center; }
 .chipCount { display: block; font-size: 18px; font-weight: 800; }
 .chipLabel { display: block; font-size: 9px; font-weight: 600; color: var(--sub); }
+.chip { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; background: transparent; }
+.chip:hover { background: var(--surface); }
+.chipActive { background: var(--surface); box-shadow: 0 0 0 1px currentColor inset; }
 .newScanBtn { margin-left: auto; background: var(--surface); border: none; border-radius: 10px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--sub); }
 .newScanBtn:hover { color: var(--text); }
 .listHeader { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--sub); margin-bottom: 8px; }
+
+/* Collapsible drawers (Scan performance / score legend) */
+.drawer { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin: 8px 0; overflow: hidden; }
+.drawerSummary {
+  list-style: none; cursor: pointer; user-select: none;
+  padding: 14px 16px; font-size: 13px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.drawerSummary::-webkit-details-marker { display: none; }
+.drawerSummary::after { content: '▾'; margin-left: auto; color: var(--sub); transition: transform 0.15s; }
+.drawer[open] .drawerSummary::after { transform: rotate(180deg); }
+.drawerSummary:hover { background: var(--surface); }
+.drawerBody { padding: 0 16px 8px; }
+.drawerBody .perfCard, .drawerBody .legendCard { margin: 0; border: none; background: transparent; padding: 0; }
+
+/* Sort/filter controls */
+.controlsRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 16px 0 8px; }
+.controlsRow .listHeader { margin-bottom: 0; }
+.controlsRight { display: flex; align-items: center; gap: 10px; }
+.clearFilter { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--surface); border-radius: 8px; padding: 5px 9px; }
+.sortLabel { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); }
+.sortSelect { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; cursor: pointer; }
+.emptyList { font-size: 13px; color: var(--sub); text-align: center; padding: 20px; }
 
 /* Results intro line */
 .resultsIntro { font-size: 15px; font-weight: 700; color: var(--text); text-align: center; margin: 4px 0 12px; }
@@ -99,7 +127,7 @@
 .scorePill { border: 1px solid; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
 .novaTag { border: 1px solid; border-radius: 20px; padding: 3px 8px; font-size: 10px; font-weight: 600; }
 .productBrand { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); }
-.productName { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: #f1f0ff; }
+.productName { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
 .factors { display: flex; flex-direction: column; gap: 2px; }
 .factor { font-size: 12px; color: var(--sub); line-height: 1.5; }
 
@@ -115,7 +143,7 @@
 .detailSectionLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin-bottom: 8px; }
 .detailFactor { font-size: 12px; color: var(--sub); line-height: 1.8; }
 .detailBrand { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--sub); }
-.detailName { font-size: 22px; font-weight: 700; margin-top: 2px; margin-bottom: 12px; color: #f1f0ff; }
+.detailName { font-size: 22px; font-weight: 700; margin-top: 2px; margin-bottom: 12px; color: var(--text); }
 .detailSection { margin-bottom: 12px; }
 .detailIngredients { font-size: 12px; color: var(--sub); line-height: 1.6; }
 .cropImage { display: block; max-width: 160px; max-height: 160px; border-radius: 10px; border: 1px solid var(--border); object-fit: cover; }
