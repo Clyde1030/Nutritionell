@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
-import { getProfileId } from '@/lib/storage';
+import { getProfileId, getMaxDetections } from '@/lib/storage';
 import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
 import CameraCapture from './CameraCapture';
@@ -21,6 +21,16 @@ const altCache = new Map<string, { alternatives?: Alternative[]; error?: string 
 
 type View = 'picker' | 'analyzing' | 'results';
 
+// Sort/filter of the results list.
+type ResultFilter = 'all' | ScoreEnum;
+type ResultSort = 'best' | 'worst' | 'az';
+const SCORE_RANK: Record<ScoreEnum, number> = {
+  'Great Fit': 4, 'Just OK Fit': 3, 'Neutral Fit': 2, "Doesn't Fit": 1, 'Unidentified': 0,
+};
+const SORT_LABELS: Record<ResultSort, string> = {
+  best: 'Best fit first', worst: 'Worst fit first', az: 'Name (A–Z)',
+};
+
 type Stage =
   | 'idle' | 'uploading' | 'detecting' | 'detected' | 'identifying'
   | 'identified' | 'analyzing' | 'scoring' | 'complete';
@@ -31,6 +41,8 @@ interface ScanProgress {
   idDets: { bbox: number[]; identified: boolean }[];
   planDets: { bbox: number[]; status: string }[];
   detected: number; identified: number;
+  idDone: number;                                       // crops identified so far (live, during identify)
+  enriching: boolean;                                   // canonical nutrition lookup in flight
   unique: number; duplicate: number; unidentified: number;
   detectMs?: number; identifyMs?: number;
   analysisDone: number; analysisTotal: number;
@@ -39,7 +51,8 @@ interface ScanProgress {
 
 const EMPTY_PROG: ScanProgress = {
   stage: 'idle', detectBoxes: [], idDets: [], planDets: [],
-  detected: 0, identified: 0, unique: 0, duplicate: 0, unidentified: 0,
+  detected: 0, identified: 0, idDone: 0, enriching: false,
+  unique: 0, duplicate: 0, unidentified: 0,
   analysisDone: 0, analysisTotal: 0, stageStart: 0,
 };
 
@@ -73,6 +86,7 @@ function liveStageBoxes(prog: ScanProgress): { bbox: number[]; color: string }[]
 
 function analysisSub(prog: ScanProgress): string {
   if (prog.stage === 'scoring') return `Scoring ${prog.unique} product${prog.unique === 1 ? '' : 's'} against your profile…`;
+  if (prog.enriching) return `${prog.unique} unique · ${prog.duplicate} duplicate — looking up nutrition facts…`;
   if (prog.analysisTotal > 0) return `${prog.unique} unique · ${prog.duplicate} duplicate · ${prog.unidentified} unidentified — collecting data ${prog.analysisDone}/${prog.analysisTotal}`;
   return 'Preparing nutrition analysis…';
 }
@@ -104,6 +118,8 @@ export default function ScanTab() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [prog, setProg] = useState<ScanProgress>(EMPTY_PROG);
   const [now, setNow] = useState(0);
+  const [resFilter, setResFilter] = useState<ResultFilter>('all');
+  const [resSort, setResSort] = useState<ResultSort>('best');
 
   // Live elapsed-time ticker for the active stage (only runs while analyzing).
   useEffect(() => {
@@ -121,7 +137,10 @@ export default function ScanTab() {
         setProg(p => ({ ...p, stage: 'detected', detectBoxes: ev.boxes ?? [], detected: ev.count ?? 0, detectMs: ev.detect_ms }));
         break;
       case 'identifying':
-        setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now() }));
+        setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now(), idDone: 0 }));
+        break;
+      case 'identify_progress':
+        setProg(p => ({ ...p, stage: 'identifying', idDone: ev.done ?? p.idDone, detected: ev.total ?? p.detected }));
         break;
       case 'identified':
         setProg(p => ({
@@ -136,11 +155,17 @@ export default function ScanTab() {
           analysisTotal: ev.unique_count ?? 0, analysisDone: 0,
         }));
         break;
+      case 'enriching':
+        setProg(p => ({ ...p, stage: 'analyzing', enriching: true }));
+        break;
+      case 'enriched':
+        setProg(p => ({ ...p, enriching: false }));
+        break;
       case 'analysis_progress':
-        setProg(p => ({ ...p, stage: 'analyzing', analysisDone: ev.done ?? 0, analysisTotal: ev.total ?? p.analysisTotal }));
+        setProg(p => ({ ...p, stage: 'analyzing', enriching: false, analysisDone: ev.done ?? 0, analysisTotal: ev.total ?? p.analysisTotal }));
         break;
       case 'scoring':
-        setProg(p => ({ ...p, stage: 'scoring' }));
+        setProg(p => ({ ...p, stage: 'scoring', enriching: false }));
         break;
       case 'complete':
         setResult(ev.result as ShelfAnalysisResponse);
@@ -169,6 +194,8 @@ export default function ScanTab() {
       const fd = new FormData();
       fd.append('image', file);
       fd.append('profile_id', profileId);
+      // User-selected cap (Settings tab) on how many products to identify + score.
+      fd.append('max_detections', String(getMaxDetections()));
       return fd;
     };
 
@@ -253,9 +280,11 @@ export default function ScanTab() {
       },
       {
         label: 'Identifying products (Gemini)',
-        sub: (activeStep > 1 || prog.identified)
+        sub: activeStep > 1
           ? `${prog.identified} identified · ${Math.max(prog.detected - prog.identified, 0)} not identified`
-          : 'Reading each product label…',
+          : prog.idDone > 0
+            ? `Recognizing products… ${Math.min(prog.idDone, prog.detected)} of ${prog.detected}`
+            : 'Recognizing each product…',
         doneMs: prog.identifyMs,
       },
       {
@@ -346,28 +375,74 @@ export default function ScanTab() {
           })}
         </div>
 
-        {/* Summary bar */}
+        {/* Summary bar — chips double as score filters (tap to filter, tap again to clear) */}
         <div className={s.summaryBar}>
           {(['Great Fit', 'Just OK Fit', 'Neutral Fit', "Doesn't Fit", 'Unidentified'] as ScoreEnum[]).map(sc =>
             counts[sc] ? (
-              <div key={sc} className={s.chip} style={{ borderColor: SCORE_COLORS[sc] }}>
+              <button
+                key={sc}
+                className={`${s.chip} ${resFilter === sc ? s.chipActive : ''}`}
+                style={{ borderColor: SCORE_COLORS[sc] }}
+                aria-pressed={resFilter === sc}
+                onClick={() => setResFilter(resFilter === sc ? 'all' : sc)}
+              >
                 <span className={s.chipCount} style={{ color: SCORE_COLORS[sc] }}>{counts[sc]}</span>
                 <span className={s.chipLabel}>{SCORE_LABELS[sc]}</span>
-              </div>
+              </button>
             ) : null
           )}
           <button className={s.newScanBtn} onClick={() => { setResult(null); setView('picker'); }}>New scan</button>
         </div>
 
-        {/* Scan performance summary — per-stage timing + product counts */}
-        {result.performance && <PerformanceCard perf={result.performance} />}
+        {/* Collapsible: Scan performance (per-stage timing + counts) */}
+        {result.performance && (
+          <details className={s.drawer}>
+            <summary className={s.drawerSummary}>⏱️ Scan performance</summary>
+            <div className={s.drawerBody}><PerformanceCard perf={result.performance} /></div>
+          </details>
+        )}
 
-        {/* Score legend — what each score means, in addition to the Transparency Overview prompt */}
-        <ScoreLegend />
+        {/* Collapsible: what each score means */}
+        <details className={s.drawer}>
+          <summary className={s.drawerSummary}>❔ What each score means</summary>
+          <div className={s.drawerBody}><ScoreLegend /></div>
+        </details>
 
-        <p className={s.listHeader}>Products — click for details</p>
+        {/* Sort + filter controls */}
+        <div className={s.controlsRow}>
+          <p className={s.listHeader}>
+            Products{resFilter !== 'all' ? ` · ${SCORE_LABELS[resFilter]}` : ''} — tap for details
+          </p>
+          <div className={s.controlsRight}>
+            {resFilter !== 'all' && (
+              <button className={s.clearFilter} onClick={() => setResFilter('all')}>Clear filter ✕</button>
+            )}
+            <label className={s.sortLabel}>
+              Sort
+              <select className={s.sortSelect} value={resSort} onChange={e => setResSort(e.target.value as ResultSort)}>
+                {(['best', 'worst', 'az'] as ResultSort[]).map(k => (
+                  <option key={k} value={k}>{SORT_LABELS[k]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
         <div className={s.productList}>
-          {result.products.map((p, i) => <ProductRow key={i} product={p} onPress={() => setSelected(p)} />)}
+          {(() => {
+            const shown = result.products
+              .map((p, i) => ({ p, i }))
+              .filter(({ p }) => resFilter === 'all' || p.scoring === resFilter)
+              .sort((a, b) => {
+                if (resSort === 'az') return a.p.product_name.localeCompare(b.p.product_name);
+                const d = SCORE_RANK[b.p.scoring] - SCORE_RANK[a.p.scoring];
+                return resSort === 'best' ? d : -d;
+              });
+            if (shown.length === 0) {
+              return <p className={s.emptyList}>No products match this filter.</p>;
+            }
+            return shown.map(({ p, i }) => <ProductRow key={i} product={p} onPress={() => setSelected(p)} />);
+          })()}
         </div>
 
         {/* Detail panel */}
@@ -407,6 +482,11 @@ export default function ScanTab() {
           <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput}
             onChange={e => handleFile(e.target.files?.[0] ?? null)} />
         </div>
+
+        {/* Reflects the user's Settings choice; read at render so it stays current. */}
+        <p className={s.scanSettingNote}>
+          Analyzing up to <strong>{getMaxDetections()}</strong> products per scan · change this in <strong>Settings ⚙</strong>
+        </p>
 
         {/* Live camera capture */}
         <button className={s.cameraBtn} onClick={() => setShowCamera(true)}>

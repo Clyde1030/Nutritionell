@@ -58,6 +58,15 @@
   padding: 20px; margin-bottom: 20px;
 }
 .chartTitle { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+.chartEmpty { font-size: 13px; color: var(--sub); line-height: 1.5; padding: 8px 0 4px; }
+
+/* Inline error banner (theme-aware) */
+.errorBanner {
+  display: flex; align-items: flex-start; gap: 10px; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--red); border-radius: 12px;
+  padding: 12px 14px; margin: 16px 0; color: var(--red); font-size: 13px; line-height: 1.5;
+}
+.errorDismiss { color: var(--red); background: transparent; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
 
 .insightCard {
   background: var(--surface); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0;

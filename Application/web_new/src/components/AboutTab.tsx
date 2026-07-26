@@ -15,10 +15,10 @@ export default function AboutTab() {
   return (
     <div className={s.wrap}>
       <div className={s.header}>
-        <h1 className={s.title}>About Us</h1>
+        <h1 className={s.title}>Contact Us</h1>
         <p className={s.subtitle}>
           Nutritionell is built by a small team who believe grocery shopping should be
-          transparent, not overwhelming.
+          transparent, not overwhelming. Reach out any time.
         </p>
       </div>
 

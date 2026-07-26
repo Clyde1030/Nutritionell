@@ -9,14 +9,10 @@ import PlanTab from '@/components/PlanTab';
 import GreenwashingTab from '@/components/GreenwashingTab';
 import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
 import AboutTab from '@/components/AboutTab';
+import SettingsTab from '@/components/SettingsTab';
+import { initTheme } from '@/lib/theme';
 
-/* ============================================
-   DEV ONLY — Comment out or remove this import
-   and the <DevColorToolbar /> below for production.
-   ============================================ */
-import DevColorToolbar from '@/components/DevColorToolbar';
-
-type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about';
+type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about' | 'settings';
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home',          label: 'Home',          icon: '⌂' },
   { key: 'profile',       label: 'Profile',       icon: '◎' },
@@ -25,15 +21,17 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'plan',          label: 'My Plan',       icon: '≡' },
   { key: 'greenwashing',  label: 'Greenwashing',  icon: '🔍' },
   { key: 'ingredients',   label: 'Nutrition',     icon: '🧬' },
-  { key: 'about',         label: 'About',         icon: '✉' },
+  { key: 'about',         label: 'Contact Us',    icon: '✉' },
+  { key: 'settings',      label: 'Settings',      icon: '⚙' },
 ];
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('home');
-  // ScanTab stays mounted for within-session persistence, but it reads localStorage
-  // during render — so only mount it AFTER hydration to avoid a server/client mismatch.
+  // ScanTab / PlanTab stay mounted for within-session persistence, but read
+  // localStorage during render — so only mount AFTER hydration to avoid a
+  // server/client mismatch. Also apply the persisted color theme on mount.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => { setMounted(true); initTheme(); }, []);
   return (
     <div className={styles.shell}>
       {/* Top nav */}
@@ -61,14 +59,13 @@ export default function Home() {
             persists when you switch tabs and come back within the session.
             Gated on `mounted` so it renders client-only (no SSR hydration mismatch). */}
         {mounted && <div style={{ display: tab === 'scan' ? 'block' : 'none' }}><ScanTab /></div>}
-        {tab === 'plan'         && <PlanTab />}
+        {/* My Plan also stays mounted so a generated plan persists across tab switches. */}
+        {mounted && <div style={{ display: tab === 'plan' ? 'block' : 'none' }}><PlanTab /></div>}
         {tab === 'greenwashing' && <GreenwashingTab />}
         {tab === 'ingredients'  && <IngredientAnalyticsTab />}
         {tab === 'about'        && <AboutTab />}
+        {tab === 'settings'     && <SettingsTab />}
       </main>
-
-      {/* DEV ONLY — Remove <DevColorToolbar /> for production */}
-      <DevColorToolbar />
     </div>
   );
 }

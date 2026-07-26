@@ -161,8 +161,16 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const eatingData = eatingPattern ? byKey(eatingPattern) : undefined;
   const nutriData = nutritionPhil ? byKey(nutritionPhil) : undefined;
 
-  const TOL_LABELS = ['No processed food', 'Minimal', 'Low processing', 'Moderate', 'No restriction'];
-  const toleranceLabel = options.processed_food_tolerance_labels[String(tolerance)] ?? 'Moderate processing';
+  const TOL_LABELS = ['None', 'Minimal', 'Low', 'Moderate', 'No limit'];
+  // Plain-language meaning of each level, anchored to the NOVA processing scale
+  // (1 = unprocessed whole foods … 4 = ultra-processed).
+  const TOL_DESCRIPTIONS = [
+    'Whole, unprocessed foods only (NOVA 1) — fresh produce, plain meat, eggs, nuts, dried beans. No packaged/processed items.',
+    'Mostly whole foods, plus simple processed staples (NOVA 1–2) — e.g. plain yogurt, olive oil, butter, canned beans, flour.',
+    'Everyday processed foods are fine (up to NOVA 3) — bread, cheese, canned vegetables, cured meats — but ultra-processed items are flagged.',
+    'Most packaged foods are okay; only heavily ultra-processed items (NOVA 4) — sodas, packaged snacks, instant meals — get flagged.',
+    'No limit on processing — every product is considered, including ultra-processed foods (NOVA 4).',
+  ];
 
   return (
     <div className={s.page}>
@@ -354,13 +362,21 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         {/* Processing tolerance */}
         <section className={s.section}>
           <label className={s.label}>Processed Food Tolerance</label>
+          <p className={s.sublabel}>
+            How strict scoring is about processing, on the NOVA scale (1 = unprocessed
+            whole foods, 4 = ultra-processed). Pick the most processed level you&apos;re
+            comfortable with.
+          </p>
           <div className={s.tolRow}>
             {[0, 1, 2, 3, 4].map(n => (
               <button key={n} className={`${s.tolSeg} ${tolerance === n ? s.tolSegOn : ''}`}
-                onClick={() => setTolerance(n)}>{TOL_LABELS[n]}</button>
+                onClick={() => setTolerance(n)} title={TOL_DESCRIPTIONS[n]}>{TOL_LABELS[n]}</button>
             ))}
           </div>
-          <p className={s.toleranceLabel} style={{ marginTop: 8, marginBottom: 0 }}>{toleranceLabel}</p>
+          <div className={s.tolDescBox}>
+            <span className={s.tolDescLevel}>Level {tolerance} · {TOL_LABELS[tolerance]}</span>
+            <span className={s.tolDescText}>{TOL_DESCRIPTIONS[tolerance]}</span>
+          </div>
         </section>
 
         <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave} disabled={saving}>

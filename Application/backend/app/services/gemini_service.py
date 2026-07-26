@@ -49,11 +49,54 @@ PHILOSOPHY_MAP = {p["key"]: p for p in DIETARY_PHILOSOPHIES}
 IDENTIFY_BATCH_SIZE = 6
 IDENTIFY_MAX_CONCURRENCY = 5
 
+# Canonical enrichment (I2): identification now returns IDENTITY ONLY (brand / name /
+# variant) for every raw facing. The heavy canonical ingredients + nutrition are then
+# fetched only for the UNIQUE deduped products — a text-only pass, chunked and run
+# concurrently — instead of being generated for all ~40 facings (most of which are
+# duplicates thrown away by dedup). This shrinks the timeout-prone identification stage.
+ENRICH_CHUNK_SIZE = 8
+ENRICH_MAX_CONCURRENCY = 4
+
+# Scoring is chunked + run CONCURRENTLY (S3): wall-clock becomes the slowest chunk
+# instead of one serial call whose output grows with every product.
+SCORING_CHUNK_SIZE = 5
+SCORING_MAX_CONCURRENCY = 4
+
 # Codes worth retrying: 429 (rate limited) and the 5xx transient overload codes
 # Gemini returns under load (we've seen live 503 "UNAVAILABLE" during scans).
 _RETRYABLE_CODES = {429, 500, 503, 504}
 _MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY_SECONDS = 1.0
+
+# Disabling Gemini "thinking" on the mechanical recall passes (identification +
+# enrichment) is a large latency win (I1) with little quality cost — those passes are
+# visual recognition / canonical lookup, not multi-step reasoning. Built once and
+# feature-detected so an older google-genai SDK that predates thinking budgets simply
+# leaves thinking on rather than crashing. (Scoring keeps its default thinking.)
+try:
+    _THINKING_OFF = types.ThinkingConfig(thinking_budget=0)
+except Exception:  # pragma: no cover - SDK too old for thinking budgets
+    _THINKING_OFF = None
+
+
+def _json_config(temperature: float, disable_thinking: bool = False) -> types.GenerateContentConfig:
+    """GenerateContentConfig for a JSON response, optionally with thinking disabled.
+
+    thinking_config is only attached when the installed SDK supports it, so callers
+    are safe across google-genai versions.
+    """
+    if disable_thinking and _THINKING_OFF is not None:
+        try:
+            return types.GenerateContentConfig(
+                temperature=temperature,
+                response_mime_type="application/json",
+                thinking_config=_THINKING_OFF,
+            )
+        except Exception:  # pragma: no cover - defensive: field unsupported
+            pass
+    return types.GenerateContentConfig(
+        temperature=temperature, response_mime_type="application/json",
+    )
 
 PROCESSING_LEVEL_LABELS = {
     0: "unprocessed whole foods only",
@@ -123,71 +166,26 @@ Ingredients to Always Avoid: {', '.join(avoided) if avoided else 'None'}
 Processed Food Tolerance: {tolerance} (NOVA scale: {profile.processed_food_tolerance or 3}/4)"""
 
 
-_IDENTIFICATION_OUTPUT_SCHEMA = """{
+# Identification returns IDENTITY ONLY (I2). Canonical ingredients/nutrition are
+# fetched afterwards, for unique products only, via the enrichment pass below.
+_IDENTITY_OUTPUT_SCHEMA = """{
   "brand": string,
   "product_name": string,
   "variant": string,
   "possible_variants": [string],
-
   "canonical_search_name": string,
-
   "detected_product": true,
-
   "visual_confidence": number,
   "nutrition_confidence": "High" | "Medium" | "Low",
-
-  "identification_basis": [
-    "brand logo",
-    "package colors",
-    "package artwork",
-    "package layout",
-    "shape",
-    "visible text"
-  ],
-
-  "package_size": string | null,
-
   "food_category": string,
-
-  "ingredients": [
-    string
-  ],
-
-  "allergens": [
-    string
-  ],
-
-  "dietary_tags": [
-    string
-  ],
-
-  "nutrition": {
-    "serving_size": string,
-    "calories": number,
-    "total_fat_g": number,
-    "saturated_fat_g": number,
-    "trans_fat_g": number,
-    "cholesterol_mg": number,
-    "sodium_mg": number,
-    "total_carbohydrate_g": number,
-    "dietary_fiber_g": number,
-    "total_sugars_g": number,
-    "added_sugars_g": number,
-    "protein_g": number
-  },
-
-  "nova_processing_level": 1 | 2 | 3 | 4 | null,
-
-  "reasoning": string
+  "package_size": string | null
 }"""
 
-_IDENTIFICATION_PROMPT_BODY = """You are an expert grocery product recognition and nutrition knowledge AI.
+_IDENTIFICATION_PROMPT_BODY = """You are an expert grocery product recognition AI.
 
 Your job is NOT to perform OCR.
 
-Your primary task is to identify the exact commercial grocery product represented by each crop using ALL available visual evidence.
-
-Use every visual cue available, including but not limited to:
+Your task is to identify the exact commercial grocery product shown, using ALL available visual evidence:
 
 - Brand logos
 - Package colors
@@ -201,60 +199,23 @@ Use every visual cue available, including but not limited to:
 - Recognizable branding
 - Any readable text
 
-Do NOT rely primarily on OCR.
-
-Instead, use the complete visual appearance of the package to recognize the product.
-
-Your objective is to identify the actual commercial product sold in stores.
+Do NOT rely primarily on OCR. Use the complete visual appearance of the package to recognize the product actually sold in stores.
 
 --------------------------------------------------
 IDENTIFICATION PROCESS
 --------------------------------------------------
 
-For each crop:
-
-STEP 1
-Identify the product family.
-
-STEP 2
-Identify the brand.
-
-STEP 3
-Identify the specific product.
-
-STEP 4
-Identify the flavor or variety if possible.
-
-STEP 5
-Estimate confidence.
-
---------------------------------------------------
-CANONICAL PRODUCT INFORMATION
---------------------------------------------------
-
-If the product is identified with HIGH confidence, populate the remaining fields using the STANDARD commercial product information associated with that product.
-
-Do NOT attempt to read ingredients or nutrition facts directly from the image unless they are clearly visible.
-
-Instead, use the canonical ingredients and nutrition facts normally associated with the identified product.
-
-For example:
-
-If the image is confidently identified as:
-
-"Kellogg's Frosted Flakes"
-
-return the standard ingredient list and nutrition facts for Kellogg's Frosted Flakes, even if those are not visible.
+STEP 1  Identify the product family.
+STEP 2  Identify the brand.
+STEP 3  Identify the specific product.
+STEP 4  Identify the flavor or variety if possible.
+STEP 5  Estimate confidence.
 
 --------------------------------------------------
 AMBIGUITY RULES
 --------------------------------------------------
 
-If multiple product variants are visually plausible:
-
-DO NOT GUESS.
-
-Instead:
+If multiple product variants are visually plausible, DO NOT GUESS. Instead:
 
 - identify the product family
 - identify the brand
@@ -263,108 +224,93 @@ Instead:
 
 Example:
 
-brand:
-Nature Valley
-
-product_name:
-Crunchy Granola Bars
-
-variant:
-Unknown
-
-possible_variants:
-[
-"Oats & Honey",
-"Peanut Butter",
-"Maple Brown Sugar"
-]
+brand: Nature Valley
+product_name: Crunchy Granola Bars
+variant: Unknown
+possible_variants: ["Oats & Honey", "Peanut Butter", "Maple Brown Sugar"]
 
 --------------------------------------------------
 CONFIDENCE RULES
 --------------------------------------------------
 
-visual_confidence
+visual_confidence — confidence the image represents the identified product based on appearance:
 
-Confidence that the image represents the identified product based on appearance.
+  0.95-1.00  Nearly certain
+  0.80-0.94  High confidence
+  0.60-0.79  Moderate confidence
+  Below 0.60 Low confidence
 
-0.95-1.00
-Nearly certain
-
-0.80-0.94
-High confidence
-
-0.60-0.79
-Moderate confidence
-
-Below 0.60
-Low confidence
-
-nutrition_confidence
-
-Confidence that the returned nutrition information corresponds to the identified product.
-
-Possible values:
-
-"High"
-"Medium"
-"Low"
-
-Use "Medium" when the exact flavor or formulation cannot be determined.
-
---------------------------------------------------
-FIELD SOURCE RULES
---------------------------------------------------
-
-brand
--> visual recognition
-
-product_name
--> visual recognition
-
-variant
--> visual recognition
-
-package_size
--> visual recognition only if visible
-
-ingredients
--> canonical ingredients for the identified commercial product
-
-nutrition
--> canonical nutrition facts
-
-allergens
--> derived from canonical ingredients
-
-dietary_tags
--> derived from canonical ingredients
-
-nova_processing_level
--> estimated from canonical ingredients
+nutrition_confidence — confidence that the product identity is precise enough to look up its nutrition later. One of "High" / "Medium" / "Low". Use "Medium" when the exact flavor or formulation cannot be determined.
 
 --------------------------------------------------
 DO NOT
 --------------------------------------------------
 
 Do NOT invent products.
-
 Do NOT invent brands.
-
-Do NOT fabricate nutrition facts when the product cannot be reasonably identified.
-
-Do NOT use OCR as the primary identification method.
-
 Do NOT guess flavors when multiple variants are equally plausible.
+Do NOT output ingredients or nutrition facts — return IDENTITY ONLY. Ingredients and nutrition are looked up in a later step.
 """
+
+# Canonical enrichment (I2): given IDENTIFIED products (text only, no image), return
+# the standard ingredients + nutrition facts for each. Run only over the unique set.
+_ENRICH_OUTPUT_SCHEMA = """{
+  "ingredients": [string],
+  "allergens": [string],
+  "dietary_tags": [string],
+  "nova_processing_level": 1 | 2 | 3 | 4 | null,
+  "nutrition": {
+    "serving_size": string,
+    "calories": number,
+    "total_fat_g": number,
+    "saturated_fat_g": number,
+    "trans_fat_g": number,
+    "cholesterol_mg": number,
+    "sodium_mg": number,
+    "total_carbohydrate_g": number,
+    "dietary_fiber_g": number,
+    "total_sugars_g": number,
+    "added_sugars_g": number,
+    "protein_g": number
+  }
+}"""
+
+
+def _build_enrichment_prompt(products_block: str, num: int) -> str:
+    """Text-only canonical-data lookup for already-identified products (I2)."""
+    return f"""You are a grocery product nutrition knowledge base.
+
+You are given {num} identified grocery products (brand + product name + variant). For EACH product, return the STANDARD canonical ingredients and nutrition facts normally associated with that commercial product — the information a shopper would find on the actual package.
+
+Use the canonical ingredients and nutrition facts for the identified product even though no image is provided. For example, for "Kellogg's Frosted Flakes" return the standard ingredient list and nutrition facts for that product.
+
+Derive allergens and dietary_tags from the canonical ingredients. Estimate nova_processing_level (1-4) from the canonical ingredients.
+
+If a product cannot be confidently matched to a real commercial product, return an empty ingredients list, empty allergens, and null nutrition values rather than inventing data.
+
+--------------------------------------------------
+PRODUCTS
+--------------------------------------------------
+
+{products_block}
+
+--------------------------------------------------
+OUTPUT
+--------------------------------------------------
+
+Return EXACTLY {num} JSON objects, one per product, in the SAME order. Each object MUST contain these fields:
+
+{_ENRICH_OUTPUT_SCHEMA}
+
+Return ONLY the JSON array. No markdown. No explanations. No additional text."""
 
 
 def _build_crop_identification_prompt(num_crops: int) -> str:
-    """Build the product-identification prompt for YOLO-cropped shelf photos.
+    """Build the IDENTITY-ONLY identification prompt for YOLO-cropped shelf photos.
 
-    Mirrors the canonical-recognition template: brand/package visual
-    recognition first, canonical ingredients/nutrition for high-confidence
-    matches, explicit possible_variants + lowered confidence when ambiguous
-    rather than guessing.
+    Visual recognition first; explicit possible_variants + lowered confidence
+    when ambiguous rather than guessing. Canonical ingredients/nutrition are
+    NOT requested here — they're fetched later for unique products only (I2).
     """
     return (
         f"You are given {num_crops} cropped images. Each crop contains EXACTLY ONE grocery product, "
@@ -374,7 +320,7 @@ def _build_crop_identification_prompt(num_crops: int) -> str:
         "OUTPUT\n"
         "--------------------------------------------------\n\n"
         "Return EXACTLY one JSON object for each crop. Each object MUST contain these fields:\n\n"
-        f"{_IDENTIFICATION_OUTPUT_SCHEMA}\n\n"
+        f"{_IDENTITY_OUTPUT_SCHEMA}\n\n"
         "--------------------------------------------------\n"
         "OUTPUT REQUIREMENTS\n"
         "--------------------------------------------------\n\n"
@@ -389,9 +335,9 @@ def _build_crop_identification_prompt(num_crops: int) -> str:
 def _build_whole_image_identification_prompt() -> str:
     """Whole-image fallback identification prompt (no YOLO crops available).
 
-    Same visual-recognition-first / canonical-data approach as the crop
-    prompt, but identifies every visible product in one image and must also
-    return each product's bounding box since there's no YOLO box to attach.
+    Same IDENTITY-ONLY visual-recognition approach as the crop prompt, but
+    identifies every visible product in one image and must also return each
+    product's bounding box since there's no YOLO box to attach.
     """
     return (
         "You are given one photo of a grocery shelf or product display that may contain "
@@ -403,7 +349,7 @@ def _build_whole_image_identification_prompt() -> str:
         "Return one JSON object per distinct product visible in the image. Each object MUST "
         "contain these fields, PLUS a bounding_box field:\n\n"
         "  bounding_box: [ymin, xmin, ymax, xmax] normalised 0.0-1.0\n\n"
-        f"{_IDENTIFICATION_OUTPUT_SCHEMA}\n\n"
+        f"{_IDENTITY_OUTPUT_SCHEMA}\n\n"
         "--------------------------------------------------\n"
         "OUTPUT REQUIREMENTS\n"
         "--------------------------------------------------\n\n"
@@ -669,15 +615,11 @@ Treat the missing category as Neutral.
 
 Do NOT infer unknown values."""
 
+# SCORING OUTPUT IS DECISION-ONLY (S1). The nutrition facts, ingredients, allergens,
+# dietary tags and NOVA level are NOT re-emitted here — the backend already holds the
+# canonical values from the identification + enrichment passes and merges them onto
+# the result. Regenerating them was the bulk of the scoring call's output tokens.
 _SCORING_OUTPUT_SCHEMA = """{
-  "brand": string,
-
-  "product_name": string,
-
-  "variant": string,
-
-  "canonical_search_name": string,
-
   "scoring":
     "Great Fit" |
     "Just OK Fit" |
@@ -714,50 +656,7 @@ _SCORING_OUTPUT_SCHEMA = """{
 
   "flagged_ingredients":[
       string
-  ],
-
-  "processing_level": integer,
-
-  "ingredients":[
-      string
-  ],
-
-  "allergens":[
-      string
-  ],
-
-  "dietary_tags":[
-      string
-  ],
-
-  "nutrition": {
-
-      "serving_size": string,
-
-      "calories": number,
-
-      "protein_g": number,
-
-      "total_fat_g": number,
-
-      "saturated_fat_g": number,
-
-      "trans_fat_g": number,
-
-      "cholesterol_mg": number,
-
-      "sodium_mg": number,
-
-      "total_carbohydrate_g": number,
-
-      "dietary_fiber_g": number,
-
-      "total_sugars_g": number,
-
-      "added_sugars_g": number
-
-  }
-
+  ]
 }"""
 
 
@@ -903,7 +802,15 @@ class GeminiService:
             out.append(Detection(bounding_box=bbox, status=role["status"], product_index=role["product_index"]))
         return out
 
-    def _detect(self, image_bytes: bytes) -> list[dict]:
+    @staticmethod
+    def _detection_cap(max_detections: Optional[int]) -> int:
+        """Resolve the per-scan detection cap: caller override (clamped 1-100) or the
+        configured default. Controls how many crops go on to Gemini identification."""
+        if max_detections is None:
+            return settings.yolo_max_detections
+        return max(1, min(int(max_detections), 100))
+
+    def _detect(self, image_bytes: bytes, max_detections: Optional[int] = None) -> list[dict]:
         """YOLO localisation only — returns pixel boxes sorted by confidence, capped. [] if none."""
         try:
             boxes = yolo_service.detect(
@@ -915,7 +822,7 @@ class GeminiService:
             logger.error("YOLO detection failed, will fall back to whole-image vision pass: %s", exc)
             return []
         boxes.sort(key=lambda b: b["confidence"], reverse=True)
-        return boxes[: settings.yolo_max_detections]
+        return boxes[: self._detection_cap(max_detections)]
 
     async def analyze_shelf(
         self,
@@ -923,9 +830,15 @@ class GeminiService:
         mime_type: str,
         profile: UserProfile,
         db: AsyncSession,
+        max_detections: Optional[int] = None,
     ) -> ShelfAnalysisResponse:
-        raw_products = await self._detect_and_identify(image_bytes, mime_type, profile)
+        raw_products = await self._detect_and_identify(
+            image_bytes, mime_type, profile, max_detections=max_detections
+        )
         unique_list, roles = self._plan_dedup(raw_products)
+
+        # Canonical ingredients/nutrition for the UNIQUE identified products only (I2).
+        await self._enrich_products(unique_list)
 
         enriched = []
         for item in unique_list:
@@ -951,6 +864,7 @@ class GeminiService:
         mime_type: str,
         profile: UserProfile,
         db: AsyncSession,
+        max_detections: Optional[int] = None,
     ):
         """Same pipeline as analyze_shelf, but yields a progress event at every stage.
 
@@ -958,8 +872,11 @@ class GeminiService:
           detecting                         -> YOLO started
           detected      count, boxes, detect_ms
           identifying   total               -> Gemini identification started
+          identify_progress  done, total    -> per identification batch completed (I3)
           identified    count, identified_count, detections[{bbox,identified}], identify_ms
           analysis_plan unique_count, duplicate_count, unidentified_count, detections[{bbox,status}]
+          enriching     total               -> canonical ingredients/nutrition lookup started (I2)
+          enriched      enrich_ms
           analysis_progress  done, total    -> per unique product (USDA lookup)
           scoring
           complete      result (ShelfAnalysisResponse json, incl. detections + performance)
@@ -969,17 +886,34 @@ class GeminiService:
         # ── Stage 1: detection (YOLO) ──────────────────────────────────────────
         yield {"stage": "detecting"}
         t_det = time.monotonic()
-        boxes = self._detect(image_bytes)
+        boxes = self._detect(image_bytes, max_detections=max_detections)
         detect_ms = (time.monotonic() - t_det) * 1000
         img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
         det_boxes = [pixel_bbox_to_normalized(b["bbox"], img_w, img_h) for b in boxes]
         yield {"stage": "detected", "count": len(boxes), "boxes": det_boxes, "detect_ms": round(detect_ms)}
 
-        # ── Stage 2: identification (Gemini) ───────────────────────────────────
+        # ── Stage 2: identification (Gemini) — identity only, streamed per batch (I3) ──
         yield {"stage": "identifying", "total": len(boxes)}
         t_id = time.monotonic()
         if boxes:
-            raw = await self._vision_pass_from_crops(image_bytes, boxes, profile)
+            crops = crop_boxes(image_bytes, boxes)
+            batches = self._make_crop_batches(crops)
+            sem = asyncio.Semaphore(IDENTIFY_MAX_CONCURRENCY)
+            batch_results: list = [None] * len(batches)
+            done_crops = 0
+
+            async def _run(idx: int, batch: list[bytes]):
+                return idx, await self._identify_batch(batch, sem)
+
+            # Emit a progress event as each batch lands so the stream never goes silent
+            # during the (previously black-box) identification gather.
+            for fut in asyncio.as_completed([_run(i, b) for i, b in enumerate(batches)]):
+                idx, res = await fut
+                batch_results[idx] = res
+                done_crops += len(batches[idx])
+                yield {"stage": "identify_progress", "done": done_crops, "total": len(crops)}
+            raw_ident = [item for batch in batch_results for item in batch]  # flatten -> crop order
+            raw = self._attach_identity(raw_ident, boxes, crops, img_w, img_h)
         else:
             raw = await self._vision_pass(image_bytes, mime_type, profile)   # whole-image fallback
         identify_ms = (time.monotonic() - t_id) * 1000
@@ -998,7 +932,14 @@ class GeminiService:
         yield {"stage": "analysis_plan", "unique_count": unique_count, "duplicate_count": dup_count,
                "unidentified_count": unid_count, "detections": plan_dets}
 
-        # ── Stage 4: nutrition data (USDA lookup per unique product) ────────────
+        # ── Stage 4a: canonical enrichment (unique identified products only) (I2) ──
+        yield {"stage": "enriching", "total": unique_count}
+        t_enrich = time.monotonic()
+        await self._enrich_products(unique_list)
+        enrich_ms = (time.monotonic() - t_enrich) * 1000
+        yield {"stage": "enriched", "enrich_ms": round(enrich_ms)}
+
+        # ── Stage 4b: nutrition data (USDA lookup per unique product) ────────────
         t_usda = time.monotonic()
         enriched = []
         for i, item in enumerate(unique_list):
@@ -1020,8 +961,9 @@ class GeminiService:
 
         detections = self._build_detections(raw, roles)
         performance = PerformanceSummary(
-            detect_ms=round(detect_ms), identify_ms=round(identify_ms), usda_ms=round(usda_ms),
-            scoring_ms=round(scoring_ms), analysis_ms=round(usda_ms + scoring_ms),
+            detect_ms=round(detect_ms), identify_ms=round(identify_ms),
+            enrich_ms=round(enrich_ms), usda_ms=round(usda_ms),
+            scoring_ms=round(scoring_ms), analysis_ms=round(enrich_ms + usda_ms + scoring_ms),
             total_ms=round((time.monotonic() - t0) * 1000),
             detected_count=len(raw), identified_count=identified_count,
             unique_count=unique_count, duplicate_count=dup_count, unidentified_count=unid_count,
@@ -1033,7 +975,8 @@ class GeminiService:
         yield {"stage": "complete", "result": response.model_dump(mode="json")}
 
     async def _detect_and_identify(
-        self, image_bytes: bytes, mime_type: str, profile: UserProfile
+        self, image_bytes: bytes, mime_type: str, profile: UserProfile,
+        max_detections: Optional[int] = None,
     ) -> list[dict]:
         """Localise products with YOLO, then identify each crop with Gemini.
 
@@ -1055,13 +998,35 @@ class GeminiService:
             return await self._vision_pass(image_bytes, mime_type, profile)
 
         boxes.sort(key=lambda b: b["confidence"], reverse=True)
-        boxes = boxes[: settings.yolo_max_detections]
+        boxes = boxes[: self._detection_cap(max_detections)]
 
         return await self._vision_pass_from_crops(image_bytes, boxes, profile)
 
+    @staticmethod
+    def _make_crop_batches(crops: list[bytes]) -> list[list[bytes]]:
+        return [crops[i:i + IDENTIFY_BATCH_SIZE] for i in range(0, len(crops), IDENTIFY_BATCH_SIZE)]
+
+    @staticmethod
+    def _attach_identity(
+        raw: list[dict], boxes: list[dict], crops: list[bytes], img_w: int, img_h: int
+    ) -> list[dict]:
+        """Attach each product's normalised YOLO box + its exact crop image, by index.
+
+        Keeping the identity dict, the box, and the crop in lockstep by index
+        guarantees the crop shown to the user matches the product it came from.
+        """
+        products = []
+        for i, box in enumerate(boxes):
+            item = raw[i] if i < len(raw) else {}
+            item["bounding_box"] = pixel_bbox_to_normalized(box["bbox"], img_w, img_h)
+            item["crop_image"] = encode_jpeg_data_uri(crops[i])
+            products.append(item)
+        return products
+
     async def _identify_batch(self, batch_crops: list[bytes], sem: asyncio.Semaphore) -> list[dict]:
-        """Identify one batch of crops in a single Gemini call. Returns exactly
-        len(batch_crops) items (empty dicts pad any short/failed parse).
+        """Identify one batch of crops in a single Gemini call (identity only, no
+        thinking — I1). Returns exactly len(batch_crops) items (empty dicts pad any
+        short/failed parse).
 
         API errors (429/quota, persistent 5xx) are allowed to propagate so the
         endpoint's quota handling can surface them; only JSON parsing is caught here.
@@ -1076,7 +1041,7 @@ class GeminiService:
             response = await self._generate_content(
                 model="gemini-2.5-flash",
                 contents=contents,
-                config=types.GenerateContentConfig(temperature=0.1, response_mime_type="application/json"),
+                config=_json_config(0.1, disable_thinking=True),
             )
 
         try:
@@ -1095,22 +1060,69 @@ class GeminiService:
         crops = crop_boxes(image_bytes, boxes)
 
         # Identify crops in CONCURRENT batches (instead of one serial call over all crops).
-        batches = [crops[i:i + IDENTIFY_BATCH_SIZE] for i in range(0, len(crops), IDENTIFY_BATCH_SIZE)]
+        batches = self._make_crop_batches(crops)
         sem = asyncio.Semaphore(IDENTIFY_MAX_CONCURRENCY)
         batch_results = await asyncio.gather(*(self._identify_batch(b, sem) for b in batches))
         raw = [item for batch in batch_results for item in batch]   # flatten -> original crop order
+        return self._attach_identity(raw, boxes, crops, img_w, img_h)
 
-        products = []
-        for i, box in enumerate(boxes):
-            item = raw[i] if i < len(raw) else {}
-            item["bounding_box"] = pixel_bbox_to_normalized(box["bbox"], img_w, img_h)
-            # Same crop that was sent to Gemini for identification -- keeping the two
-            # in lockstep by index guarantees the crop shown to the user always
-            # matches the product it was identified from.
-            item["crop_image"] = encode_jpeg_data_uri(crops[i])
-            products.append(item)
+    async def _enrich_batch(self, chunk: list[dict], sem: asyncio.Semaphore) -> list[dict]:
+        """Look up canonical ingredients/nutrition for one chunk of identified products
+        in a single text-only Gemini call (no thinking — I1). Returns len(chunk) items.
 
-        return products
+        API errors propagate for the endpoint's quota handling; only JSON parsing is
+        caught here, degrading to empty dicts so the scan still completes.
+        """
+        lines = []
+        for j, p in enumerate(chunk):
+            variant = p.get("variant") or "Unknown"
+            possible = p.get("possible_variants") or []
+            line = (f"Product {j + 1}: {p.get('brand', 'Unknown')} — "
+                    f"{p.get('product_name', 'Unknown')} (variant: {variant})")
+            if possible:
+                line += f" [possible variants: {', '.join(possible)}]"
+            lines.append(line)
+        prompt = _build_enrichment_prompt("\n".join(lines), len(chunk))
+
+        async with sem:
+            response = await self._generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=_json_config(0.1, disable_thinking=True),
+            )
+
+        try:
+            parsed = json.loads(response.text)
+            if not isinstance(parsed, list):
+                parsed = parsed.get("products", parsed.get("items", [parsed]))
+        except Exception as exc:
+            logger.error("Enrichment batch parse error: %s", exc)
+            parsed = []
+        return [(parsed[k] if k < len(parsed) else {}) for k in range(len(chunk))]
+
+    async def _enrich_products(self, products: list[dict]) -> None:
+        """Fill canonical ingredients/nutrition/allergens/dietary_tags/NOVA onto each
+        IDENTIFIED product dict IN PLACE (I2). Unidentified items are skipped (no
+        canonical data possible). Chunked + run concurrently. Best-effort: on failure
+        the products keep whatever they had and scoring treats missing data as neutral.
+        """
+        targets = [p for p in products if self._is_identified(p)]
+        if not targets:
+            return
+        chunks = [targets[i:i + ENRICH_CHUNK_SIZE] for i in range(0, len(targets), ENRICH_CHUNK_SIZE)]
+        sem = asyncio.Semaphore(ENRICH_MAX_CONCURRENCY)
+        chunk_results = await asyncio.gather(*(self._enrich_batch(c, sem) for c in chunks))
+        flat = [item for chunk in chunk_results for item in chunk]
+        for p, data in zip(targets, flat):
+            if not data:
+                continue
+            p["ingredients"] = data.get("ingredients") or p.get("ingredients", [])
+            p["allergens"] = data.get("allergens") or p.get("allergens", [])
+            p["dietary_tags"] = data.get("dietary_tags") or p.get("dietary_tags", [])
+            if data.get("nova_processing_level") is not None:
+                p["nova_processing_level"] = data.get("nova_processing_level")
+            if data.get("nutrition"):
+                p["nutrition"] = data.get("nutrition")
 
     async def _vision_pass(
         self, image_bytes: bytes, mime_type: str, profile: UserProfile
@@ -1120,9 +1132,7 @@ class GeminiService:
         response = await self._generate_content(
             model="gemini-2.5-flash",
             contents=[system_prompt, image_part],
-            config=types.GenerateContentConfig(
-                temperature=0.1, response_mime_type="application/json"
-            ),
+            config=_json_config(0.1, disable_thinking=True),
         )
         try:
             raw = json.loads(response.text)
@@ -1145,6 +1155,83 @@ class GeminiService:
 
         return raw
 
+    @staticmethod
+    def _product_summary(idx: int, item: dict) -> str:
+        """One product's scoring INPUT block (canonical identity + nutrition + USDA).
+
+        `idx` is the product's position within its scoring chunk; results are mapped
+        back to products by position, so the label is only for the model's readability.
+        """
+        usda = item.get("_usda")
+        usda_text = "No USDA data found."
+        if usda:
+            nutrients = usda.nutrient_dict()
+            top = {k: v for k, v in list(nutrients.items())[:12]}
+            usda_text = (
+                f"USDA: {usda.brand or 'N/A'} – {usda.product_name}\n"
+                f"  Ingredients: {usda.ingredients or 'N/A'}\n"
+                f"  Nutrients/100g: {json.dumps(top)}\n"
+                f"  Allergen flags: gluten={usda.contains_gluten}, peanuts={usda.contains_peanuts}, "
+                f"dairy={usda.contains_dairy}, soy={usda.contains_soy}"
+            )
+        variant = item.get("variant") or "Unknown"
+        possible_variants = item.get("possible_variants") or []
+        ingredients = item.get("ingredients") or []
+        allergens = item.get("allergens") or []
+        dietary_tags = item.get("dietary_tags") or []
+        canonical_nutrition = item.get("nutrition") or {}
+        nova_level = item.get("nova_processing_level")
+        visual_confidence = item.get("visual_confidence")
+        nutrition_confidence = item.get("nutrition_confidence")
+
+        summary_lines = [
+            f"[{idx}] {item.get('brand', 'Unknown')} – {item.get('product_name', 'Unidentified')} "
+            f"(variant: {variant})",
+        ]
+        if possible_variants:
+            summary_lines.append(f"  Possible variants (ambiguous): {', '.join(possible_variants)}")
+        summary_lines.append(
+            f"  Identification confidence: visual={visual_confidence if visual_confidence is not None else 'unknown'}, "
+            f"nutrition={nutrition_confidence or 'unknown'}"
+        )
+        summary_lines.append(
+            f"  Canonical ingredients: {', '.join(ingredients) if ingredients else 'unknown'}"
+        )
+        summary_lines.append(
+            f"  Canonical allergens: {', '.join(allergens) if allergens else 'none identified'}"
+        )
+        summary_lines.append(
+            f"  Dietary tags: {', '.join(dietary_tags) if dietary_tags else 'none'}"
+        )
+        summary_lines.append(f"  NOVA processing level (canonical estimate): {nova_level or 'unknown'}")
+        if canonical_nutrition:
+            summary_lines.append(f"  Canonical nutrition facts: {json.dumps(canonical_nutrition)}")
+        summary_lines.append(f"  {usda_text}")
+        return "\n".join(summary_lines)
+
+    async def _score_chunk(
+        self, chunk: list[dict], profile_ctx: str, sem: asyncio.Semaphore
+    ) -> list[dict]:
+        """Score one chunk of products in a single Gemini call. Returns len(chunk)
+        decision dicts (empty dicts pad any short/failed parse). Scoring keeps its
+        default thinking — it's the reasoning step."""
+        block = chr(10).join(self._product_summary(j, it) for j, it in enumerate(chunk))
+        system_prompt = _build_scoring_prompt(profile_ctx, block)
+        async with sem:
+            response = await self._generate_content(
+                model="gemini-2.5-flash",
+                contents=system_prompt,
+                config=_json_config(0.1),
+            )
+        try:
+            scored = json.loads(response.text)
+            if not isinstance(scored, list):
+                scored = scored.get("products", [scored])
+        except Exception as exc:
+            logger.error("Scoring chunk parse error: %s", exc)
+            scored = []
+        return [(scored[k] if k < len(scored) else {}) for k in range(len(chunk))]
+
     async def _scoring_pass(
         self, enriched_products: list[dict], profile: UserProfile
     ) -> list[ProductItem]:
@@ -1153,72 +1240,15 @@ class GeminiService:
 
         profile_ctx = _build_profile_context(profile)
 
-        product_summaries = []
-        for i, item in enumerate(enriched_products):
-            usda = item.get("_usda")
-            usda_text = "No USDA data found."
-            if usda:
-                nutrients = usda.nutrient_dict()
-                top = {k: v for k, v in list(nutrients.items())[:12]}
-                usda_text = (
-                    f"USDA: {usda.brand or 'N/A'} – {usda.product_name}\n"
-                    f"  Ingredients: {usda.ingredients or 'N/A'}\n"
-                    f"  Nutrients/100g: {json.dumps(top)}\n"
-                    f"  Allergen flags: gluten={usda.contains_gluten}, peanuts={usda.contains_peanuts}, "
-                    f"dairy={usda.contains_dairy}, soy={usda.contains_soy}"
-                )
-            variant = item.get("variant") or "Unknown"
-            possible_variants = item.get("possible_variants") or []
-            ingredients = item.get("ingredients") or []
-            allergens = item.get("allergens") or []
-            dietary_tags = item.get("dietary_tags") or []
-            canonical_nutrition = item.get("nutrition") or {}
-            nova_level = item.get("nova_processing_level")
-            visual_confidence = item.get("visual_confidence")
-            nutrition_confidence = item.get("nutrition_confidence")
-
-            summary_lines = [
-                f"[{i}] {item.get('brand', 'Unknown')} – {item.get('product_name', 'Unidentified')} "
-                f"(variant: {variant})",
-            ]
-            if possible_variants:
-                summary_lines.append(f"  Possible variants (ambiguous): {', '.join(possible_variants)}")
-            summary_lines.append(
-                f"  Identification confidence: visual={visual_confidence if visual_confidence is not None else 'unknown'}, "
-                f"nutrition={nutrition_confidence or 'unknown'}"
-            )
-            summary_lines.append(
-                f"  Canonical ingredients: {', '.join(ingredients) if ingredients else 'unknown'}"
-            )
-            summary_lines.append(
-                f"  Canonical allergens: {', '.join(allergens) if allergens else 'none identified'}"
-            )
-            summary_lines.append(
-                f"  Dietary tags: {', '.join(dietary_tags) if dietary_tags else 'none'}"
-            )
-            summary_lines.append(f"  NOVA processing level (canonical estimate): {nova_level or 'unknown'}")
-            if canonical_nutrition:
-                summary_lines.append(f"  Canonical nutrition facts: {json.dumps(canonical_nutrition)}")
-            summary_lines.append(f"  {usda_text}")
-            product_summaries.append("\n".join(summary_lines))
-
-        system_prompt = _build_scoring_prompt(profile_ctx, chr(10).join(product_summaries))
-
-        response = await self._generate_content(
-            model="gemini-2.5-flash",
-            contents=system_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.1, response_mime_type="application/json"
-            ),
+        # Chunk + score CONCURRENTLY (S3). Each chunk is a separate Gemini call; the
+        # per-product methodology is deterministic, so splitting is safe.
+        chunks = [enriched_products[i:i + SCORING_CHUNK_SIZE]
+                  for i in range(0, len(enriched_products), SCORING_CHUNK_SIZE)]
+        sem = asyncio.Semaphore(SCORING_MAX_CONCURRENCY)
+        chunk_results = await asyncio.gather(
+            *(self._score_chunk(c, profile_ctx, sem) for c in chunks)
         )
-
-        try:
-            scored = json.loads(response.text)
-            if not isinstance(scored, list):
-                scored = scored.get("products", [scored])
-        except Exception as exc:
-            logger.error("Scoring pass parse error: %s", exc)
-            scored = []
+        scored = [sd for chunk in chunk_results for sd in chunk]  # aligned to enriched_products
 
         results: list[ProductItem] = []
         for i, item in enumerate(enriched_products):
@@ -1241,7 +1271,13 @@ class GeminiService:
             except ValueError:
                 score_val = ScoreEnum.UNIDENTIFIED
 
-            nutrition = sd.get("nutrition") or {}
+            # Canonical nutrition / ingredients / allergens / tags / NOVA come from the
+            # identification + enrichment item, NOT the scoring output (S1). Scoring only
+            # returns the decision, score_breakdown, reasoning and flagged_ingredients.
+            nutrition = item.get("nutrition") or {}
+            ingredients = item.get("ingredients") or []
+            allergens = item.get("allergens") or []
+            dietary_tags = item.get("dietary_tags") or []
             breakdown_raw = sd.get("score_breakdown") or {}
             score_breakdown = ScoreBreakdown(
                 hard_exclusion=bool(breakdown_raw.get("hard_exclusion", False)),
@@ -1255,10 +1291,10 @@ class GeminiService:
             )
 
             results.append(ProductItem(
-                brand=sd.get("brand") or item.get("brand", "Unknown"),
-                product_name=sd.get("product_name") or item.get("product_name", "Unidentified Product"),
-                variant=sd.get("variant") or item.get("variant"),
-                canonical_search_name=sd.get("canonical_search_name") or item.get("canonical_search_name"),
+                brand=item.get("brand", "Unknown"),
+                product_name=item.get("product_name", "Unidentified Product"),
+                variant=item.get("variant"),
+                canonical_search_name=item.get("canonical_search_name"),
                 nutritional_facts=NutritionalFacts(
                     calories=nutrition.get("calories"),
                     serving_size=nutrition.get("serving_size"),
@@ -1273,7 +1309,7 @@ class GeminiService:
                     added_sugars_g=nutrition.get("added_sugars_g"),
                     protein_g=nutrition.get("protein_g"),
                     flagged_ingredients=sd.get("flagged_ingredients", []),
-                    detected_ingredients=sd.get("ingredients", item.get("ingredients", [])),
+                    detected_ingredients=ingredients,
                 ),
                 scoring=score_val,
                 score_breakdown=score_breakdown,
@@ -1281,9 +1317,9 @@ class GeminiService:
                 reasoning_by_factor=sd.get("reasoning_by_factor", []),
                 bounding_box=bbox,
                 data_source=data_source,
-                processing_level=sd.get("processing_level", item.get("nova_processing_level")),
-                allergens=sd.get("allergens", item.get("allergens", [])),
-                dietary_tags=sd.get("dietary_tags", item.get("dietary_tags", [])),
+                processing_level=item.get("nova_processing_level"),
+                allergens=allergens,
+                dietary_tags=dietary_tags,
                 crop_image=item.get("crop_image"),
             ))
 

@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import GreenwashingTransparency from './GreenwashingTransparency';
+import { useChartColors } from '@/lib/chartColors';
 import s from './GreenwashingTab.module.css';
 
 interface ClaimVerdict {
@@ -46,9 +47,12 @@ export default function GreenwashingTab() {
   const [result, setResult] = useState<GreenwashResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showTransparency, setShowTransparency] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const chartColors = useChartColors();
 
   const analyze = async (file: File) => {
     setView('analyzing');
+    setErrorMsg(null);
     setImageUrl(URL.createObjectURL(file));
     try {
       const fd = new FormData();
@@ -59,7 +63,9 @@ export default function GreenwashingTab() {
       setResult(data);
       setView('results');
     } catch (e: any) {
-      alert(e.message ?? 'Analysis failed.');
+      // Show inline (not an alert) so the reason — e.g. a missing server API key —
+      // is visible, especially on mobile where alerts can be easy to miss.
+      setErrorMsg(e.message ?? 'Analysis failed. Please try again.');
       setView('upload');
     }
   };
@@ -67,7 +73,7 @@ export default function GreenwashingTab() {
   const handleFile = (file: File | null) => {
     if (!file) return;
     const ok = file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name);
-    if (!ok) { alert('Please select an image file (JPEG, PNG, or an iPhone photo).'); return; }
+    if (!ok) { setErrorMsg('Please select an image file (JPEG, PNG, or an iPhone photo).'); return; }
     analyze(file);
   };
 
@@ -198,29 +204,37 @@ export default function GreenwashingTab() {
 
         <div className={s.chartWrap}>
           <p className={s.chartTitle}>Marketing Claims vs. Actual Composition</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={result.marketing_vs_reality} barGap={4}>
-              <XAxis dataKey="category" tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }} />
-              <Bar dataKey="marketed" fill="#7c6aff" name="Marketed" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="actual" fill="#ff5c7a" name="Actual" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {result.marketing_vs_reality.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260} minWidth={0}>
+              <BarChart data={result.marketing_vs_reality} barGap={4}>
+                <XAxis dataKey="category" tick={{ fill: chartColors.sub, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: chartColors.sub, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: chartColors.border, fillOpacity: 0.3 }} contentStyle={{ background: chartColors.card, border: `1px solid ${chartColors.border}`, borderRadius: 8, color: chartColors.text, fontSize: 12 }} />
+                <Bar dataKey="marketed" fill={chartColors.accent} name="Marketed" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="actual" fill={chartColors.red} name="Actual" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className={s.chartEmpty}>No measurable marketing-vs-reality gaps to chart for this product.</p>
+          )}
         </div>
 
         <div className={s.chartWrap}>
           <p className={s.chartTitle}>Nutritional Radar: Claimed vs Actual</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={result.radar_data}>
-              <PolarGrid stroke="#1f1f2e" />
-              <PolarAngleAxis dataKey="metric" tick={{ fill: '#9896b0', fontSize: 11 }} />
-              <PolarRadiusAxis tick={{ fill: '#9896b0', fontSize: 10 }} />
-              <Radar name="Claimed" dataKey="claimed" stroke="#7c6aff" fill="#7c6aff" fillOpacity={0.2} />
-              <Radar name="Actual" dataKey="actual" stroke="#ff5c7a" fill="#ff5c7a" fillOpacity={0.2} />
-              <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }} />
-            </RadarChart>
-          </ResponsiveContainer>
+          {result.radar_data.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300} minWidth={0}>
+              <RadarChart data={result.radar_data}>
+                <PolarGrid stroke={chartColors.border} />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: chartColors.sub, fontSize: 11 }} />
+                <PolarRadiusAxis tick={{ fill: chartColors.sub, fontSize: 10 }} />
+                <Radar name="Claimed" dataKey="claimed" stroke={chartColors.accent} fill={chartColors.accent} fillOpacity={0.2} />
+                <Radar name="Actual" dataKey="actual" stroke={chartColors.red} fill={chartColors.red} fillOpacity={0.2} />
+                <Tooltip contentStyle={{ background: chartColors.card, border: `1px solid ${chartColors.border}`, borderRadius: 8, color: chartColors.text, fontSize: 12 }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className={s.chartEmpty}>Not enough numeric nutrition data was legible to chart a claimed-vs-actual radar.</p>
+          )}
         </div>
 
         {result.hidden_concerns.length > 0 && (
@@ -249,6 +263,13 @@ export default function GreenwashingTab() {
           Upload a photo of a single product&apos;s front label. The AI reads its marketing claims and checks them against the product&apos;s actual ingredients and nutrition.
         </p>
       </div>
+
+      {errorMsg && (
+        <div className={s.errorBanner}>
+          <span>⚠️ {errorMsg}</span>
+          <button className={s.errorDismiss} onClick={() => setErrorMsg(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       <div className={s.singleItemNote}>
         📸 <strong>One product at a time.</strong> This check sends a single item straight to the AI — no shelf scanning — so frame just one product&apos;s front label for the most accurate read.
