@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import GreenwashingTransparency from './GreenwashingTransparency';
-import { ENDPOINTS } from '@/lib/api';
+import { useChartColors } from '@/lib/chartColors';
 import s from './GreenwashingTab.module.css';
 
 interface ClaimVerdict {
@@ -40,91 +40,32 @@ const CLAIM_STYLES: Record<ClaimVerdict['verdict'], { label: string; bg: string;
 };
 
 type View = 'upload' | 'analyzing' | 'results';
-const GREENWASHING_STATE_KEY = 'nutritionell_greenwashing_state_v1';
-
-type PersistedGreenwashingState = {
-  view: View;
-  imageUrl: string;
-  result: GreenwashResult | null;
-  errorMsg: string | null;
-};
-
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read image file.'));
-    reader.readAsDataURL(file);
-  });
 
 export default function GreenwashingTab() {
   const [view, setView] = useState<View>('upload');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<GreenwashResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showTransparency, setShowTransparency] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(GREENWASHING_STATE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as PersistedGreenwashingState;
-
-      if (saved.view === 'analyzing') {
-        // Network requests do not survive a browser refresh.
-        setView('upload');
-        setImageUrl(saved.imageUrl ?? '');
-        setErrorMsg('Your previous greenwashing check was interrupted by a page refresh. Please run it again.');
-      } else {
-        setView(saved.view ?? 'upload');
-        setImageUrl(saved.imageUrl ?? '');
-        setResult(saved.result ?? null);
-        setErrorMsg(saved.errorMsg ?? null);
-      }
-    } catch {
-      // Ignore malformed saved state.
-    }
-  }, []);
-
-  useEffect(() => {
-    const hasState = view !== 'upload' || Boolean(imageUrl) || Boolean(result) || Boolean(errorMsg);
-    if (!hasState) {
-      localStorage.removeItem(GREENWASHING_STATE_KEY);
-      return;
-    }
-
-    const payload: PersistedGreenwashingState = {
-      view,
-      imageUrl,
-      result,
-      errorMsg,
-    };
-    localStorage.setItem(GREENWASHING_STATE_KEY, JSON.stringify(payload));
-  }, [view, imageUrl, result, errorMsg]);
-
-  const resetState = () => {
-    setResult(null);
-    setImageUrl('');
-    setErrorMsg(null);
-    setView('upload');
-  };
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const chartColors = useChartColors();
 
   const analyze = async (file: File) => {
-    setErrorMsg(null);
     setView('analyzing');
-    const url = await fileToDataUrl(file).catch(() => URL.createObjectURL(file));
-    setImageUrl(url);
+    setErrorMsg(null);
+    setImageUrl(URL.createObjectURL(file));
     try {
       const fd = new FormData();
       fd.append('image', file);
-      const r = await fetch(ENDPOINTS.greenwashingAnalyze, { method: 'POST', body: fd });
+      const r = await fetch('/api/greenwashing', { method: 'POST', body: fd });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail ?? data.error ?? `Server ${r.status}`);
+      if (!r.ok) throw new Error(data.error ?? `Server ${r.status}`);
       setResult(data);
       setView('results');
     } catch (e: any) {
-      setErrorMsg(e.message ?? 'Analysis failed.');
+      // Show inline (not an alert) so the reason — e.g. a missing server API key —
+      // is visible, especially on mobile where alerts can be easy to miss.
+      setErrorMsg(e.message ?? 'Analysis failed. Please try again.');
       setView('upload');
     }
   };
@@ -163,7 +104,7 @@ export default function GreenwashingTab() {
             <img src={imageUrl} alt="Uploaded" className={s.previewImg} />
           </div>
         )}
-        <button className={s.newBtn} onClick={resetState}>
+        <button className={s.newBtn} onClick={() => { setResult(null); setImageUrl(''); setView('upload'); }}>
           Try Another Photo
         </button>
       </div>
@@ -263,29 +204,37 @@ export default function GreenwashingTab() {
 
         <div className={s.chartWrap}>
           <p className={s.chartTitle}>Marketing Claims vs. Actual Composition</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={result.marketing_vs_reality} barGap={4}>
-              <XAxis dataKey="category" tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#9896b0', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }} />
-              <Bar dataKey="marketed" fill="#7c6aff" name="Marketed" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="actual" fill="#ff5c7a" name="Actual" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {result.marketing_vs_reality.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260} minWidth={0}>
+              <BarChart data={result.marketing_vs_reality} barGap={4}>
+                <XAxis dataKey="category" tick={{ fill: chartColors.sub, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: chartColors.sub, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: chartColors.border, fillOpacity: 0.3 }} contentStyle={{ background: chartColors.card, border: `1px solid ${chartColors.border}`, borderRadius: 8, color: chartColors.text, fontSize: 12 }} />
+                <Bar dataKey="marketed" fill={chartColors.accent} name="Marketed" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="actual" fill={chartColors.red} name="Actual" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className={s.chartEmpty}>No measurable marketing-vs-reality gaps to chart for this product.</p>
+          )}
         </div>
 
         <div className={s.chartWrap}>
           <p className={s.chartTitle}>Nutritional Radar: Claimed vs Actual</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={result.radar_data}>
-              <PolarGrid stroke="#1f1f2e" />
-              <PolarAngleAxis dataKey="metric" tick={{ fill: '#9896b0', fontSize: 11 }} />
-              <PolarRadiusAxis tick={{ fill: '#9896b0', fontSize: 10 }} />
-              <Radar name="Claimed" dataKey="claimed" stroke="#7c6aff" fill="#7c6aff" fillOpacity={0.2} />
-              <Radar name="Actual" dataKey="actual" stroke="#ff5c7a" fill="#ff5c7a" fillOpacity={0.2} />
-              <Tooltip contentStyle={{ background: '#111118', border: '1px solid #1f1f2e', borderRadius: 8, color: '#f1f0ff', fontSize: 12 }} />
-            </RadarChart>
-          </ResponsiveContainer>
+          {result.radar_data.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300} minWidth={0}>
+              <RadarChart data={result.radar_data}>
+                <PolarGrid stroke={chartColors.border} />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: chartColors.sub, fontSize: 11 }} />
+                <PolarRadiusAxis tick={{ fill: chartColors.sub, fontSize: 10 }} />
+                <Radar name="Claimed" dataKey="claimed" stroke={chartColors.accent} fill={chartColors.accent} fillOpacity={0.2} />
+                <Radar name="Actual" dataKey="actual" stroke={chartColors.red} fill={chartColors.red} fillOpacity={0.2} />
+                <Tooltip contentStyle={{ background: chartColors.card, border: `1px solid ${chartColors.border}`, borderRadius: 8, color: chartColors.text, fontSize: 12 }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className={s.chartEmpty}>Not enough numeric nutrition data was legible to chart a claimed-vs-actual radar.</p>
+          )}
         </div>
 
         {result.hidden_concerns.length > 0 && (
@@ -299,7 +248,7 @@ export default function GreenwashingTab() {
           </div>
         )}
 
-        <button className={s.newBtn} onClick={resetState}>
+        <button className={s.newBtn} onClick={() => { setResult(null); setImageUrl(''); setView('upload'); }}>
           Analyze Another Product
         </button>
       </div>
@@ -316,8 +265,9 @@ export default function GreenwashingTab() {
       </div>
 
       {errorMsg && (
-        <div className={s.singleItemNote}>
-          ⚠️ <strong>{errorMsg}</strong>
+        <div className={s.errorBanner}>
+          <span>⚠️ {errorMsg}</span>
+          <button className={s.errorDismiss} onClick={() => setErrorMsg(null)} aria-label="Dismiss">✕</button>
         </div>
       )}
 

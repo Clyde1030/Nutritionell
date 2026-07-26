@@ -3,41 +3,22 @@ import s from './AboutTab.module.css';
 
 const CONTACT_EMAIL = 'nutritionell@gmail.com';
 
+// Placeholders — swap in real names, roles, and photo URLs when available.
 const TEAM = [
-  {
-    name: 'Steve Lanciotti',
-    role: 'Supply Chain Manager, Booz Allen Hamilton',
-    photoUrl: '/team/steve.png',
-    photoAlt: 'Portrait of Steve Lanciotti',
-  },
-  {
-    name: 'Najmeh Rahimi',
-    role: 'Battery Thermal Analyst',
-    photoUrl: '/team/najmeh.jpg',
-    photoAlt: 'Portrait of Najmeh Rahimi',
-  },
-  {
-    name: 'Priyanka Banerjee',
-    role: 'Software Engineer, Ex-Amazon',
-    photoUrl: '/team/priyanka.jpeg',
-    photoAlt: 'Portrait of Priyanka Banerjee',
-  },
-  {
-    name: 'Yu-Sheng Lee',
-    role: 'Business Data Analyst, Protective Life',
-    photoUrl: '/team/yu-sheng.jpeg',
-    photoAlt: 'Portrait of Yu_Sheng Lee',
-  },
+  { name: 'Team Member 1', role: 'Role / Title' },
+  { name: 'Team Member 2', role: 'Role / Title' },
+  { name: 'Team Member 3', role: 'Role / Title' },
+  { name: 'Team Member 4', role: 'Role / Title' },
 ];
 
 export default function AboutTab() {
   return (
     <div className={s.wrap}>
       <div className={s.header}>
-        <h1 className={s.title}>About Us</h1>
+        <h1 className={s.title}>Contact Us</h1>
         <p className={s.subtitle}>
           Nutritionell is built by a small team who believe grocery shopping should be
-          transparent, not overwhelming.
+          transparent, not overwhelming. Reach out any time.
         </p>
       </div>
 
@@ -45,11 +26,9 @@ export default function AboutTab() {
       <div className={s.team}>
         {TEAM.map(m => (
           <div key={m.name} className={s.member}>
-            <img className={s.photo} src={m.photoUrl} alt={m.photoAlt} />
-            <div className={s.memberContent}>
-              <p className={s.memberName}>{m.name}</p>
-              <p className={s.memberRole}>{m.role}</p>
-            </div>
+            <div className={s.photo} aria-hidden="true">👤</div>
+            <p className={s.memberName}>{m.name}</p>
+            <p className={s.memberRole}>{m.role}</p>
           </div>
         ))}
       </div>

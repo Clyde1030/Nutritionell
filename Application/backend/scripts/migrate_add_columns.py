@@ -22,10 +22,6 @@ async def migrate():
     conn = await asyncpg.connect(dsn)
     try:
         stmts = [
-                """ALTER TABLE user_profiles
-                    ADD COLUMN IF NOT EXISTS sex VARCHAR(20)""",
-                """ALTER TABLE user_profiles
-                    ADD COLUMN IF NOT EXISTS age_group VARCHAR(20)""",
             """ALTER TABLE user_profiles
                ADD COLUMN IF NOT EXISTS philosophy_customizations TEXT""",
             """ALTER TABLE user_profiles
