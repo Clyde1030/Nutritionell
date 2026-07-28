@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
-import { getProfileId, getMaxDetections } from '@/lib/storage';
+import { getProfileId, getMaxDetections, getYoloModel } from '@/lib/storage';
 import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
 import CameraCapture from './CameraCapture';
@@ -33,34 +33,44 @@ const SORT_LABELS: Record<ResultSort, string> = {
 
 type Stage =
   | 'idle' | 'uploading' | 'detecting' | 'detected' | 'identifying'
-  | 'identified' | 'analyzing' | 'scoring' | 'complete';
+  | 'identified' | 'analyzing' | 'complete';
+
+// One product streamed in live: identity first, its full analysis fills in later.
+interface LiveProduct {
+  product_index: number;
+  brand: string;
+  product_name: string;
+  variant?: string;
+  crop_image?: string;
+  product?: ProductItem;   // set once the product has been analysed
+}
+
+// A detection box drawn during the live view; recoloured as its state advances.
+interface LiveBox { bbox: number[]; color: string; productIndex?: number }
 
 interface ScanProgress {
   stage: Stage;
-  detectBoxes: number[][];                              // [ymin,xmin,ymax,xmax]
-  idDets: { bbox: number[]; identified: boolean }[];
-  planDets: { bbox: number[]; status: string }[];
-  detected: number; identified: number;
-  idDone: number;                                       // crops identified so far (live, during identify)
-  enriching: boolean;                                   // canonical nutrition lookup in flight
-  unique: number; duplicate: number; unidentified: number;
+  detected: number;
+  detectBoxes: number[][];
+  boxes: LiveBox[];                                     // per-box live overlay (index = box_index)
   detectMs?: number; identifyMs?: number;
-  analysisDone: number; analysisTotal: number;
-  stageStart: number;                                   // Date.now() when the active stage began
+  identified: number;
+  idDone: number; idTotal: number; idEtaMs: number;    // identification progress + ETA
+  anDone: number; anTotal: number; anEtaMs: number;    // analysis progress + ETA
+  stageStart: number;                                  // Date.now() when the active stage began
 }
 
 const EMPTY_PROG: ScanProgress = {
-  stage: 'idle', detectBoxes: [], idDets: [], planDets: [],
-  detected: 0, identified: 0, idDone: 0, enriching: false,
-  unique: 0, duplicate: 0, unidentified: 0,
-  analysisDone: 0, analysisTotal: 0, stageStart: 0,
+  stage: 'idle', detected: 0, detectBoxes: [], boxes: [],
+  identified: 0, idDone: 0, idTotal: 0, idEtaMs: 0,
+  anDone: 0, anTotal: 0, anEtaMs: 0, stageStart: 0,
 };
 
 // Which of the 3 headline steps (0=detect, 1=identify, 2=analysis) a stage belongs to.
 const STAGE_STEP: Record<Stage, number> = {
   idle: 0, uploading: 0, detecting: 0, detected: 0,
   identifying: 1, identified: 1,
-  analyzing: 2, scoring: 2, complete: 3,
+  analyzing: 2, complete: 3,
 };
 
 function fmtMs(ms: number): string {
@@ -68,27 +78,10 @@ function fmtMs(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-// Boxes + colours to draw over the image during the live analyzing view.
-function liveStageBoxes(prog: ScanProgress): { bbox: number[]; color: string }[] {
-  if (prog.stage === 'analyzing' || prog.stage === 'scoring') {
-    return prog.planDets.map(d => ({
-      bbox: d.bbox,
-      color: d.status === 'unique' ? STAGE_COLORS.unique
-        : d.status === 'duplicate' ? STAGE_COLORS.duplicate : STAGE_COLORS.unidentified,
-    }));
-  }
-  if (prog.stage === 'identified') {
-    return prog.idDets.map(d => ({ bbox: d.bbox, color: d.identified ? STAGE_COLORS.identified : STAGE_COLORS.notIdentified }));
-  }
-  const boxes = prog.detectBoxes.length ? prog.detectBoxes : prog.idDets.map(d => d.bbox);
-  return boxes.map(b => ({ bbox: b, color: STAGE_COLORS.detected }));
-}
-
-function analysisSub(prog: ScanProgress): string {
-  if (prog.stage === 'scoring') return `Scoring ${prog.unique} product${prog.unique === 1 ? '' : 's'} against your profile…`;
-  if (prog.enriching) return `${prog.unique} unique · ${prog.duplicate} duplicate — looking up nutrition facts…`;
-  if (prog.analysisTotal > 0) return `${prog.unique} unique · ${prog.duplicate} duplicate · ${prog.unidentified} unidentified — collecting data ${prog.analysisDone}/${prog.analysisTotal}`;
-  return 'Preparing nutrition analysis…';
+// "~12s left" style ETA (blank once we can't estimate).
+function fmtEta(ms?: number): string {
+  if (!ms || ms <= 0) return '';
+  return ` · ~${fmtMs(ms)} left`;
 }
 
 // Final box list: every detection coloured by its mapped product's score
@@ -117,6 +110,7 @@ export default function ScanTab() {
   const [showTransparency, setShowTransparency] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [prog, setProg] = useState<ScanProgress>(EMPTY_PROG);
+  const [liveProducts, setLiveProducts] = useState<LiveProduct[]>([]);
   const [now, setNow] = useState(0);
   const [resFilter, setResFilter] = useState<ResultFilter>('all');
   const [resSort, setResSort] = useState<ResultSort>('best');
@@ -134,39 +128,60 @@ export default function ScanTab() {
         setProg(p => ({ ...p, stage: 'detecting', stageStart: Date.now() }));
         break;
       case 'detected':
-        setProg(p => ({ ...p, stage: 'detected', detectBoxes: ev.boxes ?? [], detected: ev.count ?? 0, detectMs: ev.detect_ms }));
+        setProg(p => ({
+          ...p, stage: 'detected', detectBoxes: ev.boxes ?? [], detected: ev.count ?? 0, detectMs: ev.detect_ms,
+          boxes: (ev.boxes ?? []).map((b: number[]) => ({ bbox: b, color: STAGE_COLORS.detected })),
+        }));
         break;
       case 'identifying':
-        setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now(), idDone: 0 }));
+        setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now(), idDone: 0, idTotal: ev.total ?? p.detected, idEtaMs: 0 }));
         break;
-      case 'identify_progress':
-        setProg(p => ({ ...p, stage: 'identifying', idDone: ev.done ?? p.idDone, detected: ev.total ?? p.detected }));
+      case 'identified_item': {
+        // Recolour this crop's box by its role, and (if it's a new, non-duplicate
+        // product) add a card to the live results list.
+        const color = ev.status === 'unique' ? STAGE_COLORS.unique
+          : ev.status === 'duplicate' ? STAGE_COLORS.duplicate
+            : STAGE_COLORS.unidentified;
+        setProg(p => {
+          const boxes = p.boxes.slice();
+          if (typeof ev.box_index === 'number') {
+            boxes[ev.box_index] = { bbox: ev.bbox, color, productIndex: ev.product_index };
+          }
+          return {
+            ...p, stage: 'identifying', boxes,
+            idDone: ev.done ?? p.idDone, idTotal: ev.total ?? p.idTotal, idEtaMs: ev.eta_ms ?? 0,
+            identified: p.identified + (ev.status !== 'unidentified' ? 1 : 0),
+          };
+        });
+        if (ev.product && ev.status === 'unique') {
+          setLiveProducts(prev =>
+            prev.some(lp => lp.product_index === ev.product_index)
+              ? prev
+              : [...prev, {
+                  product_index: ev.product_index,
+                  brand: ev.product.brand, product_name: ev.product.product_name,
+                  variant: ev.product.variant, crop_image: ev.product.crop_image,
+                }]);
+        }
         break;
+      }
       case 'identified':
+        setProg(p => ({ ...p, stage: 'identified', identifyMs: ev.identify_ms, identified: ev.identified_count ?? p.identified }));
+        break;
+      case 'analyzing':
+        setProg(p => ({ ...p, stage: 'analyzing', stageStart: Date.now(), anDone: 0, anTotal: ev.total ?? 0, anEtaMs: 0 }));
+        break;
+      case 'analyzed_item': {
+        const prod = ev.product as ProductItem;
         setProg(p => ({
-          ...p, stage: 'identified', idDets: ev.detections ?? [],
-          detected: ev.count ?? p.detected, identified: ev.identified_count ?? 0, identifyMs: ev.identify_ms,
+          ...p, stage: 'analyzing',
+          anDone: ev.done ?? p.anDone, anTotal: ev.total ?? p.anTotal, anEtaMs: ev.eta_ms ?? 0,
+          // recolour every box mapped to this product (its unique facing + duplicates) by its final score
+          boxes: p.boxes.map(b => b.productIndex === ev.product_index ? { ...b, color: SCORE_COLORS[prod.scoring] } : b),
         }));
+        setLiveProducts(prev => prev.map(lp => lp.product_index === ev.product_index ? { ...lp, product: prod } : lp));
         break;
-      case 'analysis_plan':
-        setProg(p => ({
-          ...p, stage: 'analyzing', stageStart: Date.now(), planDets: ev.detections ?? [],
-          unique: ev.unique_count ?? 0, duplicate: ev.duplicate_count ?? 0, unidentified: ev.unidentified_count ?? 0,
-          analysisTotal: ev.unique_count ?? 0, analysisDone: 0,
-        }));
-        break;
-      case 'enriching':
-        setProg(p => ({ ...p, stage: 'analyzing', enriching: true }));
-        break;
-      case 'enriched':
-        setProg(p => ({ ...p, enriching: false }));
-        break;
-      case 'analysis_progress':
-        setProg(p => ({ ...p, stage: 'analyzing', enriching: false, analysisDone: ev.done ?? 0, analysisTotal: ev.total ?? p.analysisTotal }));
-        break;
-      case 'scoring':
-        setProg(p => ({ ...p, stage: 'scoring', enriching: false }));
-        break;
+      }
       case 'complete':
         setResult(ev.result as ShelfAnalysisResponse);
         setView('results');
@@ -186,6 +201,7 @@ export default function ScanTab() {
     setView('analyzing');
     setResult(null);
     setSelected(null);
+    setLiveProducts([]);
     setProg({ ...EMPTY_PROG, stage: 'uploading', stageStart: Date.now() });
     const url = URL.createObjectURL(file);
     setImageUrl(url);
@@ -196,6 +212,8 @@ export default function ScanTab() {
       fd.append('profile_id', profileId);
       // User-selected cap (Settings tab) on how many products to identify + score.
       fd.append('max_detections', String(getMaxDetections()));
+      // User-selected detection model (Settings tab): yolo11n / yolo26s / yolo26s_p2.
+      fd.append('yolo_model', getYoloModel());
       return fd;
     };
 
@@ -269,29 +287,25 @@ export default function ScanTab() {
   };
 
   if (view === 'analyzing') {
-    const boxes = liveStageBoxes(prog);
+    const boxes = prog.boxes;
     const activeStep = STAGE_STEP[prog.stage] ?? 0;
     const elapsedActive = now > prog.stageStart ? now - prog.stageStart : 0;
+    const idSub = activeStep > 1
+      ? `${prog.identified} identified`
+      : prog.idTotal > 0
+        ? `${prog.idDone} of ${prog.idTotal} identified${fmtEta(prog.idEtaMs)}`
+        : 'Recognizing each product, one at a time…';
+    const anSub = prog.anTotal > 0
+      ? `${prog.anDone} of ${prog.anTotal} analyzed${fmtEta(prog.anEtaMs)}`
+      : activeStep >= 2 ? 'Preparing nutrition analysis…' : 'Waiting for products…';
     const steps = [
       {
         label: 'Detecting products (YOLO)',
         sub: prog.detected ? `${prog.detected} product${prog.detected === 1 ? '' : 's'} detected` : 'Locating products on the shelf…',
         doneMs: prog.detectMs,
       },
-      {
-        label: 'Identifying products (Gemini)',
-        sub: activeStep > 1
-          ? `${prog.identified} identified · ${Math.max(prog.detected - prog.identified, 0)} not identified`
-          : prog.idDone > 0
-            ? `Recognizing products… ${Math.min(prog.idDone, prog.detected)} of ${prog.detected}`
-            : 'Recognizing each product…',
-        doneMs: prog.identifyMs,
-      },
-      {
-        label: 'Nutrition analysis',
-        sub: analysisSub(prog),
-        doneMs: undefined as number | undefined,
-      },
+      { label: 'Identifying products (Gemini)', sub: idSub, doneMs: prog.identifyMs },
+      { label: 'Nutrition analysis', sub: anSub, doneMs: undefined as number | undefined },
     ];
 
     return (
@@ -304,6 +318,7 @@ export default function ScanTab() {
             onLoad={e => setImgEl({ width: e.currentTarget.offsetWidth, height: e.currentTarget.offsetHeight })}
           />
           {boxes.map((b, i) => {
+            if (!b) return null;
             const [ymin, xmin, ymax, xmax] = b.bbox;
             return (
               <div key={i} className={s.liveBox} style={{
@@ -338,6 +353,25 @@ export default function ScanTab() {
             );
           })}
         </div>
+
+        {/* Live results — products appear here as they're identified, then fill in
+            with their score as each is analysed. Duplicates are not listed. */}
+        {liveProducts.length > 0 && (
+          <div className={s.liveResults}>
+            <p className={s.liveResultsHead}>
+              Products found so far <span className={s.liveResultsCount}>{liveProducts.length}</span>
+            </p>
+            <div className={s.liveGrid}>
+              {liveProducts.map(lp => (
+                <LiveProductCard
+                  key={lp.product_index}
+                  lp={lp}
+                  onPress={() => lp.product && setSelected(lp.product)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -542,10 +576,12 @@ export default function ScanTab() {
 
 function StageLegend({ stage }: { stage: Stage }) {
   let items: [string, string][];
-  if (stage === 'identified') {
-    items = [['Identified', STAGE_COLORS.identified], ['Not identified', STAGE_COLORS.notIdentified]];
-  } else if (stage === 'analyzing' || stage === 'scoring') {
-    items = [['Unique (analyzed)', STAGE_COLORS.unique], ['Duplicate', STAGE_COLORS.duplicate], ['Unidentified', STAGE_COLORS.unidentified]];
+  if (stage === 'identifying' || stage === 'identified' || stage === 'analyzing') {
+    items = [
+      ['New product', STAGE_COLORS.unique],
+      ['Duplicate', STAGE_COLORS.duplicate],
+      ['Unidentified', STAGE_COLORS.unidentified],
+    ];
   } else {
     items = [['Detected', STAGE_COLORS.detected]];
   }
@@ -557,6 +593,32 @@ function StageLegend({ stage }: { stage: Stage }) {
         </span>
       ))}
     </div>
+  );
+}
+
+// A product card in the live analyzing view: identity + crop first, its score
+// pill filling in once the product has been analysed.
+function LiveProductCard({ lp, onPress }: { lp: LiveProduct; onPress: () => void }) {
+  const done = !!lp.product;
+  const score = lp.product?.scoring;
+  return (
+    <button
+      type="button"
+      className={s.liveCard}
+      onClick={done ? onPress : undefined}
+      style={{ cursor: done ? 'pointer' : 'default', borderColor: score ? SCORE_COLORS[score] : 'var(--border)' }}
+    >
+      {lp.crop_image
+        ? <img src={lp.crop_image} alt={lp.product_name} className={s.liveCardImg} />
+        : <div className={s.liveCardImg} />}
+      <div className={s.liveCardBody}>
+        <span className={s.liveCardBrand}>{lp.brand}</span>
+        <span className={s.liveCardName}>{lp.product_name}</span>
+        {done && score
+          ? <span className={s.liveCardScore} style={{ color: SCORE_COLORS[score], background: SCORE_BG[score] }}>{SCORE_LABELS[score]}</span>
+          : <span className={s.liveCardPending}><span className={s.miniSpinner} /> Analyzing…</span>}
+      </div>
+    </button>
   );
 }
 

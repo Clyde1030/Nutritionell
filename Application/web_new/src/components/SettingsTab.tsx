@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import {
   getMaxDetections, setMaxDetections,
   MAX_DETECTIONS_DEFAULT, MAX_DETECTIONS_OPTIONS,
+  getYoloModel, setYoloModel, YOLO_MODEL_DEFAULT, YOLO_MODEL_OPTIONS,
+  type YoloModelKey,
 } from '@/lib/storage';
 import {
   PALETTES, DEFAULT_THEME, paletteByName, applyPalette, getStoredTheme, setStoredTheme,
@@ -15,10 +17,13 @@ export default function SettingsTab() {
   const [maxDet, setMaxDet] = useState<number>(MAX_DETECTIONS_DEFAULT);
   const [saved, setSaved] = useState(false);
   const [theme, setTheme] = useState<string>(DEFAULT_THEME);
+  const [model, setModel] = useState<YoloModelKey>(YOLO_MODEL_DEFAULT);
+  const [modelSaved, setModelSaved] = useState(false);
 
   useEffect(() => {
     setMaxDet(getMaxDetections());
     setTheme(getStoredTheme());
+    setModel(getYoloModel());
   }, []);
 
   const pick = (n: number) => {
@@ -26,6 +31,13 @@ export default function SettingsTab() {
     setMaxDetections(n);
     setSaved(true);
     setTimeout(() => setSaved(false), 1600);
+  };
+
+  const pickModel = (key: YoloModelKey) => {
+    setModel(key);
+    setYoloModel(key);
+    setModelSaved(true);
+    setTimeout(() => setModelSaved(false), 1600);
   };
 
   const pickTheme = (name: string) => {
@@ -69,6 +81,39 @@ export default function SettingsTab() {
             <ThemeSwatch key={p.name} name={p.name} vars={p.vars} active={theme === p.name} onPick={pickTheme} />
           ))}
         </div>
+      </section>
+
+      <section className={s.card}>
+        <div className={s.cardHead}>
+          <h2 className={s.cardTitle}>Detection model (YOLO)</h2>
+          <span className={s.valuePill}>{YOLO_MODEL_OPTIONS.find(o => o.key === model)?.label ?? model}</span>
+        </div>
+        <p className={s.cardText}>
+          Which detector finds the products in your shelf photo. Lighter models scan
+          faster; heavier ones can catch more small or tightly-packed products. Your
+          choice is used for the <strong>YOLO</strong> step of every scan.
+        </p>
+
+        <div className={s.modelGrid} role="group" aria-label="Detection model">
+          {YOLO_MODEL_OPTIONS.map(o => (
+            <button
+              key={o.key}
+              type="button"
+              className={`${s.modelCard} ${model === o.key ? s.modelCardActive : ''}`}
+              aria-pressed={model === o.key}
+              onClick={() => pickModel(o.key)}
+            >
+              <span className={s.modelName}>{o.label}{model === o.key ? ' ✓' : ''}</span>
+              <span className={s.modelDesc}>{o.desc}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className={s.appliesNote}>
+          {modelSaved
+            ? <span className={s.savedFlash}>✓ Saved — your next scan will detect with {YOLO_MODEL_OPTIONS.find(o => o.key === model)?.label}.</span>
+            : <>Applies to the <strong>Scan</strong> tab. Default is {YOLO_MODEL_OPTIONS.find(o => o.key === YOLO_MODEL_DEFAULT)?.label}.</>}
+        </p>
       </section>
 
       <section className={s.card}>

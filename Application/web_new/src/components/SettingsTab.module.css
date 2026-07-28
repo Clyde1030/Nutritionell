@@ -48,6 +48,24 @@
 .appliesNote strong { color: var(--text); font-weight: 700; }
 .savedFlash { color: var(--green, #35c07f); font-weight: 700; }
 
+/* Detection model (YOLO) picker */
+.modelGrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;
+}
+.modelCard {
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.modelCard:hover { border-color: var(--accent); }
+.modelCardActive {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--accent-glow) 0 0 0 3px;
+}
+.modelName { font-size: 15px; font-weight: 800; color: var(--text); }
+.modelDesc { font-size: 12.5px; color: var(--sub); line-height: 1.4; }
+
 /* Appearance — theme picker */
 .card + .card { margin-top: 20px; }
 .groupLabel {

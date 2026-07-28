@@ -17,6 +17,15 @@ export const PALETTES: Palette[] = [
   {
     name: 'Light Mode', mode: 'light',
     vars: {
+      '--bg': '#e8f6f4', '--card': '#ffffff', '--surface': '#f1faf8',
+      '--border': '#cfe8e2', '--text': '#17356f', '--sub': '#516585',
+      '--accent': '#20d6a4', '--accent-glow': 'rgba(32,214,164,0.2)',
+      '--green': '#1ebc90', '--red': '#d94f5c', '--yellow': '#efbf4c',
+    },
+  },
+  {
+    name: 'Light Mode Classic', mode: 'light',
+    vars: {
       '--bg': '#f5f5f7', '--card': '#ffffff', '--surface': '#eeeef2',
       '--border': '#d4d4d8', '--text': '#18181b', '--sub': '#71717a',
       '--accent': '#6d28d9', '--accent-glow': 'rgba(109,40,217,0.1)',

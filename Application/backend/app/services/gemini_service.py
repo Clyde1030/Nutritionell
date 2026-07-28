@@ -62,6 +62,24 @@ ENRICH_MAX_CONCURRENCY = 4
 SCORING_CHUNK_SIZE = 5
 SCORING_MAX_CONCURRENCY = 4
 
+# ── Per-item streaming pipeline ───────────────────────────────────────────────
+# The scan now identifies and analyses products ONE AT A TIME (a single Gemini
+# call per crop / per product) and streams each result as it lands, instead of
+# sending batches. Each item is still processed with bounded concurrency so the
+# whole scan doesn't slow to a serial crawl — these caps set how many single-item
+# Gemini calls are in flight at once.
+IDENTIFY_ITEM_CONCURRENCY = 6   # concurrent single-crop identification calls
+ANALYZE_ITEM_CONCURRENCY = 4    # concurrent per-product enrich→score units
+
+
+def _eta_ms(t_start: float, done: int, total: int) -> int:
+    """Estimated time remaining (ms) for a stage, from the average per-item time
+    so far. 0 once we can't improve the estimate (nothing done yet, or finished)."""
+    if done <= 0 or total <= done:
+        return 0
+    elapsed = time.monotonic() - t_start
+    return int(round((elapsed / done) * (total - done) * 1000))
+
 # Codes worth retrying: 429 (rate limited) and the 5xx transient overload codes
 # Gemini returns under load (we've seen live 503 "UNAVAILABLE" during scans).
 _RETRYABLE_CODES = {429, 500, 503, 504}
@@ -810,19 +828,33 @@ class GeminiService:
             return settings.yolo_max_detections
         return max(1, min(int(max_detections), 100))
 
-    def _detect(self, image_bytes: bytes, max_detections: Optional[int] = None) -> list[dict]:
-        """YOLO localisation only — returns pixel boxes sorted by confidence, capped. [] if none."""
+    def _detect(
+        self,
+        image_bytes: bytes,
+        max_detections: Optional[int] = None,
+        yolo_model: Optional[str] = None,
+    ) -> list[dict]:
+        """YOLO localisation only — returns pixel boxes sorted by confidence, capped. [] if none.
+
+        The user-selected per-scan cap (Settings → Maximum products per scan) is applied
+        at the YOLO model itself via `max_det` AND enforced again by slicing, so the shelf
+        is never over-detected. `yolo_model` picks which detector to run (Settings →
+        Detection model): yolo11n / yolo26s / yolo26s_p2.
+        """
+        cap = self._detection_cap(max_detections)
         try:
             boxes = yolo_service.detect(
                 image_bytes,
                 conf=settings.yolo_conf_threshold,
                 iou=settings.yolo_iou_threshold,
+                max_det=cap,
+                model_key=yolo_model,
             )
         except Exception as exc:
             logger.error("YOLO detection failed, will fall back to whole-image vision pass: %s", exc)
             return []
         boxes.sort(key=lambda b: b["confidence"], reverse=True)
-        return boxes[: self._detection_cap(max_detections)]
+        return boxes[:cap]
 
     async def analyze_shelf(
         self,
@@ -831,9 +863,11 @@ class GeminiService:
         profile: UserProfile,
         db: AsyncSession,
         max_detections: Optional[int] = None,
+        yolo_model: Optional[str] = None,
     ) -> ShelfAnalysisResponse:
         raw_products = await self._detect_and_identify(
-            image_bytes, mime_type, profile, max_detections=max_detections
+            image_bytes, mime_type, profile,
+            max_detections=max_detections, yolo_model=yolo_model,
         )
         unique_list, roles = self._plan_dedup(raw_products)
 
@@ -865,118 +899,170 @@ class GeminiService:
         profile: UserProfile,
         db: AsyncSession,
         max_detections: Optional[int] = None,
+        yolo_model: Optional[str] = None,
     ):
-        """Same pipeline as analyze_shelf, but yields a progress event at every stage.
+        """Item-by-item streamed analysis: identify + analyse each product ONE AT A
+        TIME and emit it the moment it's ready, instead of processing in batches.
+
+        Products flow into the UI as they land — a new (non-duplicate) product is
+        added on identification; its analysis fills in when scored. Duplicate facings
+        are NOT surfaced as products. Both stages report per-item progress + an ETA.
 
         Event stages (each a dict with "stage" + fields):
-          detecting                         -> YOLO started
-          detected      count, boxes, detect_ms
-          identifying   total               -> Gemini identification started
-          identify_progress  done, total    -> per identification batch completed (I3)
-          identified    count, identified_count, detections[{bbox,identified}], identify_ms
-          analysis_plan unique_count, duplicate_count, unidentified_count, detections[{bbox,status}]
-          enriching     total               -> canonical ingredients/nutrition lookup started (I2)
-          enriched      enrich_ms
-          analysis_progress  done, total    -> per unique product (USDA lookup)
-          scoring
-          complete      result (ShelfAnalysisResponse json, incl. detections + performance)
+          detecting                          -> YOLO started
+          detected         count, boxes, detect_ms
+          identifying      total             -> per-crop identification started
+          identified_item  box_index, bbox, status(unique|duplicate|unidentified),
+                           product_index, is_duplicate, product?{brand,product_name,
+                           variant,crop_image}, done, total, eta_ms
+          identified       identified_count, identify_ms   (stage summary)
+          analyzing        total             -> per-product analysis started
+          analyzed_item    product_index, product(ProductItem json), done, total, eta_ms
+          complete         result (ShelfAnalysisResponse json, incl. detections + performance)
         """
         t0 = time.monotonic()
+        profile_ctx = _build_profile_context(profile)
 
         # ── Stage 1: detection (YOLO) ──────────────────────────────────────────
         yield {"stage": "detecting"}
         t_det = time.monotonic()
-        boxes = self._detect(image_bytes, max_detections=max_detections)
+        boxes = self._detect(image_bytes, max_detections=max_detections, yolo_model=yolo_model)
         detect_ms = (time.monotonic() - t_det) * 1000
         img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
         det_boxes = [pixel_bbox_to_normalized(b["bbox"], img_w, img_h) for b in boxes]
         yield {"stage": "detected", "count": len(boxes), "boxes": det_boxes, "detect_ms": round(detect_ms)}
 
-        # ── Stage 2: identification (Gemini) — identity only, streamed per batch (I3) ──
+        crops = crop_boxes(image_bytes, boxes) if boxes else []
+
+        # Shared per-scan state, filled as items stream in.
+        products: list[Optional[ProductItem]] = []   # final products, indexed by product_index
+        pending: dict[int, dict] = {}                # product_index -> identity dict awaiting analysis
+        key_to_pidx: dict[tuple, int] = {}           # (brand,name) -> product_index (dedup)
+        det_list: list[tuple] = []                   # (bbox, status, product_index) per detection
+
+        def _register(ident: dict):
+            """Dedup one identified/unidentified item; assign its product_index and
+            role. Returns (status, product_index, is_new_unique)."""
+            bbox = ident.get("bounding_box") or [0.0, 0.0, 1.0, 1.0]
+            if not self._is_identified(ident):
+                pidx = len(products)
+                products.append(self._to_product_item(ident, {}))   # Unidentified, finalized now
+                det_list.append((bbox, "unidentified", pidx))
+                return "unidentified", pidx, False
+            key = ((ident.get("brand") or "").strip().lower(),
+                   (ident.get("product_name") or "").strip().lower())
+            if key in key_to_pidx:
+                pidx = key_to_pidx[key]
+                det_list.append((bbox, "duplicate", pidx))
+                return "duplicate", pidx, False
+            pidx = len(products)
+            products.append(None)                                   # placeholder; filled by analysis
+            pending[pidx] = ident
+            key_to_pidx[key] = pidx
+            det_list.append((bbox, "unique", pidx))
+            return "unique", pidx, True
+
+        # ── Stage 2: identification — one crop at a time, streamed ──────────────
         yield {"stage": "identifying", "total": len(boxes)}
         t_id = time.monotonic()
+        identified_count = 0
+
         if boxes:
-            crops = crop_boxes(image_bytes, boxes)
-            batches = self._make_crop_batches(crops)
-            sem = asyncio.Semaphore(IDENTIFY_MAX_CONCURRENCY)
-            batch_results: list = [None] * len(batches)
-            done_crops = 0
+            sem = asyncio.Semaphore(IDENTIFY_ITEM_CONCURRENCY)
 
-            async def _run(idx: int, batch: list[bytes]):
-                return idx, await self._identify_batch(batch, sem)
+            async def _id_one(i: int):
+                return i, await self._identify_one(crops[i], sem)
 
-            # Emit a progress event as each batch lands so the stream never goes silent
-            # during the (previously black-box) identification gather.
-            for fut in asyncio.as_completed([_run(i, b) for i, b in enumerate(batches)]):
-                idx, res = await fut
-                batch_results[idx] = res
-                done_crops += len(batches[idx])
-                yield {"stage": "identify_progress", "done": done_crops, "total": len(crops)}
-            raw_ident = [item for batch in batch_results for item in batch]  # flatten -> crop order
-            raw = self._attach_identity(raw_ident, boxes, crops, img_w, img_h)
+            id_done = 0
+            for fut in asyncio.as_completed([_id_one(i) for i in range(len(boxes))]):
+                i, ident = await fut
+                ident = ident or {}
+                ident["bounding_box"] = pixel_bbox_to_normalized(boxes[i]["bbox"], img_w, img_h)
+                ident["crop_image"] = encode_jpeg_data_uri(crops[i])
+                status, pidx, is_new = _register(ident)
+                id_done += 1
+                if self._is_identified(ident):
+                    identified_count += 1
+                ev = {
+                    "stage": "identified_item", "box_index": i, "bbox": ident["bounding_box"],
+                    "status": status, "product_index": pidx, "is_duplicate": status == "duplicate",
+                    "done": id_done, "total": len(boxes), "eta_ms": _eta_ms(t_id, id_done, len(boxes)),
+                }
+                if is_new:   # only a brand-new, non-duplicate product carries an identity payload
+                    ev["product"] = {
+                        "brand": ident.get("brand", "Unknown"),
+                        "product_name": ident.get("product_name", "Unidentified Product"),
+                        "variant": ident.get("variant"),
+                        "crop_image": ident.get("crop_image"),
+                    }
+                yield ev
         else:
-            raw = await self._vision_pass(image_bytes, mime_type, profile)   # whole-image fallback
+            # Whole-image fallback (close-up / no YOLO boxes): identify then stream each.
+            raw = await self._vision_pass(image_bytes, mime_type, profile)
+            for n, ident in enumerate(raw):
+                status, pidx, is_new = _register(ident)
+                if self._is_identified(ident):
+                    identified_count += 1
+                ev = {
+                    "stage": "identified_item", "box_index": n,
+                    "bbox": ident.get("bounding_box") or [0.0, 0.0, 1.0, 1.0],
+                    "status": status, "product_index": pidx, "is_duplicate": status == "duplicate",
+                    "done": n + 1, "total": len(raw), "eta_ms": _eta_ms(t_id, n + 1, len(raw)),
+                }
+                if is_new:
+                    ev["product"] = {
+                        "brand": ident.get("brand", "Unknown"),
+                        "product_name": ident.get("product_name", "Unidentified Product"),
+                        "variant": ident.get("variant"),
+                        "crop_image": ident.get("crop_image"),
+                    }
+                yield ev
+
         identify_ms = (time.monotonic() - t_id) * 1000
-        identified_count = sum(1 for it in raw if self._is_identified(it))
-        id_dets = [{"bbox": (it.get("bounding_box") or [0, 0, 1, 1]), "identified": self._is_identified(it)} for it in raw]
-        yield {"stage": "identified", "count": len(raw), "identified_count": identified_count,
-               "detections": id_dets, "identify_ms": round(identify_ms)}
+        yield {"stage": "identified", "identified_count": identified_count, "identify_ms": round(identify_ms)}
 
-        # ── Stage 3: dedup / analysis plan ─────────────────────────────────────
-        unique_list, roles = self._plan_dedup(raw)
-        unique_count = sum(1 for r in roles if r["status"] == "unique")
-        dup_count = sum(1 for r in roles if r["status"] == "duplicate")
-        unid_count = sum(1 for r in roles if r["status"] == "unidentified")
-        plan_dets = [{"bbox": (raw[i].get("bounding_box") or [0, 0, 1, 1]), "status": roles[i]["status"]}
-                     for i in range(len(raw))]
-        yield {"stage": "analysis_plan", "unique_count": unique_count, "duplicate_count": dup_count,
-               "unidentified_count": unid_count, "detections": plan_dets}
+        # ── Stage 3: analysis — one product at a time, streamed ─────────────────
+        yield {"stage": "analyzing", "total": len(pending)}
+        t_an = time.monotonic()
+        if pending:
+            sem = asyncio.Semaphore(ANALYZE_ITEM_CONCURRENCY)
 
-        # ── Stage 4a: canonical enrichment (unique identified products only) (I2) ──
-        yield {"stage": "enriching", "total": unique_count}
-        t_enrich = time.monotonic()
-        await self._enrich_products(unique_list)
-        enrich_ms = (time.monotonic() - t_enrich) * 1000
-        yield {"stage": "enriched", "enrich_ms": round(enrich_ms)}
+            async def _an_one(pidx: int, item: dict):
+                return pidx, await self._analyze_one(item, profile_ctx, db, sem)
 
-        # ── Stage 4b: nutrition data (USDA lookup per unique product) ────────────
-        t_usda = time.monotonic()
-        enriched = []
-        for i, item in enumerate(unique_list):
-            usda_food = await rag_service.lookup(
-                product_name=item.get("product_name", ""),
-                brand=item.get("brand", ""),
-                db=db,
-            )
-            item["_usda"] = usda_food
-            enriched.append(item)
-            yield {"stage": "analysis_progress", "done": i + 1, "total": len(unique_list)}
-        usda_ms = (time.monotonic() - t_usda) * 1000
+            an_done = 0
+            an_total = len(pending)
+            for fut in asyncio.as_completed([_an_one(p, it) for p, it in pending.items()]):
+                pidx, prod = await fut
+                products[pidx] = prod
+                an_done += 1
+                yield {
+                    "stage": "analyzed_item", "product_index": pidx,
+                    "product": prod.model_dump(mode="json"),
+                    "done": an_done, "total": an_total, "eta_ms": _eta_ms(t_an, an_done, an_total),
+                }
+        analysis_ms = (time.monotonic() - t_an) * 1000
 
-        # ── Stage 5: scoring (Gemini) ──────────────────────────────────────────
-        yield {"stage": "scoring"}
-        t_score = time.monotonic()
-        products = await self._scoring_pass(enriched, profile)
-        scoring_ms = (time.monotonic() - t_score) * 1000
-
-        detections = self._build_detections(raw, roles)
+        # ── Complete ────────────────────────────────────────────────────────────
+        final_products = [p if p is not None else self._to_product_item({}, {}) for p in products]
+        detections = [Detection(bounding_box=bb, status=st, product_index=pi) for bb, st, pi in det_list]
+        dup_count = sum(1 for _, st, _ in det_list if st == "duplicate")
+        unid_count = sum(1 for _, st, _ in det_list if st == "unidentified")
         performance = PerformanceSummary(
             detect_ms=round(detect_ms), identify_ms=round(identify_ms),
-            enrich_ms=round(enrich_ms), usda_ms=round(usda_ms),
-            scoring_ms=round(scoring_ms), analysis_ms=round(enrich_ms + usda_ms + scoring_ms),
-            total_ms=round((time.monotonic() - t0) * 1000),
-            detected_count=len(raw), identified_count=identified_count,
-            unique_count=unique_count, duplicate_count=dup_count, unidentified_count=unid_count,
+            analysis_ms=round(analysis_ms), total_ms=round((time.monotonic() - t0) * 1000),
+            detected_count=len(det_list), identified_count=identified_count,
+            unique_count=len(pending), duplicate_count=dup_count, unidentified_count=unid_count,
         )
         response = ShelfAnalysisResponse(
-            products=products, total_products_found=len(products),
+            products=final_products, total_products_found=len(final_products),
             detections=detections, performance=performance,
         )
         yield {"stage": "complete", "result": response.model_dump(mode="json")}
 
     async def _detect_and_identify(
         self, image_bytes: bytes, mime_type: str, profile: UserProfile,
-        max_detections: Optional[int] = None,
+        max_detections: Optional[int] = None, yolo_model: Optional[str] = None,
     ) -> list[dict]:
         """Localise products with YOLO, then identify each crop with Gemini.
 
@@ -984,22 +1070,9 @@ class GeminiService:
         less precise, localisation) when YOLO finds nothing -- e.g. a close-up
         photo of a single product rather than a shelf.
         """
-        try:
-            boxes = yolo_service.detect(
-                image_bytes,
-                conf=settings.yolo_conf_threshold,
-                iou=settings.yolo_iou_threshold,
-            )
-        except Exception as exc:
-            logger.error("YOLO detection failed, falling back to whole-image vision pass: %s", exc)
-            boxes = []
-
+        boxes = self._detect(image_bytes, max_detections=max_detections, yolo_model=yolo_model)
         if not boxes:
             return await self._vision_pass(image_bytes, mime_type, profile)
-
-        boxes.sort(key=lambda b: b["confidence"], reverse=True)
-        boxes = boxes[: self._detection_cap(max_detections)]
-
         return await self._vision_pass_from_crops(image_bytes, boxes, profile)
 
     @staticmethod
@@ -1232,6 +1305,125 @@ class GeminiService:
             scored = []
         return [(scored[k] if k < len(scored) else {}) for k in range(len(chunk))]
 
+    # ── Single-item helpers (per-product streaming pipeline) ──────────────────
+
+    async def _identify_one(self, crop_bytes: bytes, sem: asyncio.Semaphore) -> dict:
+        """Identify ONE crop in its own Gemini call (identity only). {} on failure."""
+        res = await self._identify_batch([crop_bytes], sem)
+        return res[0] if res else {}
+
+    async def _enrich_one(self, item: dict, sem: asyncio.Semaphore) -> None:
+        """Fill canonical ingredients/nutrition/allergens/tags/NOVA onto ONE identified
+        product IN PLACE (single Gemini call). Unidentified items are left untouched."""
+        if not self._is_identified(item):
+            return
+        res = await self._enrich_batch([item], sem)
+        data = res[0] if res else {}
+        if not data:
+            return
+        item["ingredients"] = data.get("ingredients") or item.get("ingredients", [])
+        item["allergens"] = data.get("allergens") or item.get("allergens", [])
+        item["dietary_tags"] = data.get("dietary_tags") or item.get("dietary_tags", [])
+        if data.get("nova_processing_level") is not None:
+            item["nova_processing_level"] = data.get("nova_processing_level")
+        if data.get("nutrition"):
+            item["nutrition"] = data.get("nutrition")
+
+    async def _score_one(self, item: dict, profile_ctx: str, sem: asyncio.Semaphore) -> dict:
+        """Score ONE product in its own Gemini call. {} on failure."""
+        res = await self._score_chunk([item], profile_ctx, sem)
+        return res[0] if res else {}
+
+    async def _analyze_one(
+        self, item: dict, profile_ctx: str, db: AsyncSession, sem: asyncio.Semaphore
+    ) -> ProductItem:
+        """Full per-product analysis: canonical enrichment → USDA lookup → scoring,
+        returned as a finished ProductItem. Each Gemini sub-call is gated by `sem`
+        so overall concurrency stays bounded while products are processed one by one."""
+        await self._enrich_one(item, sem)
+        usda_food = await rag_service.lookup(
+            product_name=item.get("product_name", ""),
+            brand=item.get("brand", ""),
+            db=db,
+        )
+        item["_usda"] = usda_food
+        sd = await self._score_one(item, profile_ctx, sem)
+        return self._to_product_item(item, sd)
+
+    @staticmethod
+    def _to_product_item(item: dict, sd: dict) -> ProductItem:
+        """Build one ProductItem from an enriched identity dict + its scoring decision.
+
+        Canonical nutrition / ingredients / allergens / tags / NOVA come from the
+        identification + enrichment item; scoring (`sd`) supplies only the decision,
+        score_breakdown, reasoning and flagged_ingredients (S1). An empty `sd`
+        yields an Unidentified product (used for crops YOLO found but Gemini couldn't
+        name)."""
+        bbox = item.get("bounding_box", [0.0, 0.0, 1.0, 1.0])
+        try:
+            bbox = [float(v) for v in bbox[:4]]
+            while len(bbox) < 4:
+                bbox.append(0.0)
+        except Exception:
+            bbox = [0.0, 0.0, 1.0, 1.0]
+
+        usda = item.get("_usda")
+        data_source = "usda_rag" if usda else (
+            "unidentified" if sd.get("scoring") == "Unidentified" else "vision_only"
+        )
+        try:
+            score_val = ScoreEnum(sd.get("scoring", "Unidentified"))
+        except ValueError:
+            score_val = ScoreEnum.UNIDENTIFIED
+
+        nutrition = item.get("nutrition") or {}
+        ingredients = item.get("ingredients") or []
+        allergens = item.get("allergens") or []
+        dietary_tags = item.get("dietary_tags") or []
+        breakdown_raw = sd.get("score_breakdown") or {}
+        score_breakdown = ScoreBreakdown(
+            hard_exclusion=bool(breakdown_raw.get("hard_exclusion", False)),
+            hard_exclusion_reasons=breakdown_raw.get("hard_exclusion_reasons", []),
+            philosophy_score=breakdown_raw.get("philosophy_score"),
+            goal_score=breakdown_raw.get("goal_score"),
+            ingredient_score=breakdown_raw.get("ingredient_score"),
+            processing_score=breakdown_raw.get("processing_score"),
+            nutrition_score=breakdown_raw.get("nutrition_score"),
+            total_score=breakdown_raw.get("total_score"),
+        )
+        return ProductItem(
+            brand=item.get("brand", "Unknown"),
+            product_name=item.get("product_name", "Unidentified Product"),
+            variant=item.get("variant"),
+            canonical_search_name=item.get("canonical_search_name"),
+            nutritional_facts=NutritionalFacts(
+                calories=nutrition.get("calories"),
+                serving_size=nutrition.get("serving_size"),
+                total_fat_g=nutrition.get("total_fat_g"),
+                saturated_fat_g=nutrition.get("saturated_fat_g"),
+                trans_fat_g=nutrition.get("trans_fat_g"),
+                cholesterol_mg=nutrition.get("cholesterol_mg"),
+                sodium_mg=nutrition.get("sodium_mg"),
+                total_carbohydrate_g=nutrition.get("total_carbohydrate_g"),
+                dietary_fiber_g=nutrition.get("dietary_fiber_g"),
+                total_sugars_g=nutrition.get("total_sugars_g"),
+                added_sugars_g=nutrition.get("added_sugars_g"),
+                protein_g=nutrition.get("protein_g"),
+                flagged_ingredients=sd.get("flagged_ingredients", []),
+                detected_ingredients=ingredients,
+            ),
+            scoring=score_val,
+            score_breakdown=score_breakdown,
+            reasoning=sd.get("reasoning", "Could not evaluate this product."),
+            reasoning_by_factor=sd.get("reasoning_by_factor", []),
+            bounding_box=bbox,
+            data_source=data_source,
+            processing_level=item.get("nova_processing_level"),
+            allergens=allergens,
+            dietary_tags=dietary_tags,
+            crop_image=item.get("crop_image"),
+        )
+
     async def _scoring_pass(
         self, enriched_products: list[dict], profile: UserProfile
     ) -> list[ProductItem]:
@@ -1250,80 +1442,10 @@ class GeminiService:
         )
         scored = [sd for chunk in chunk_results for sd in chunk]  # aligned to enriched_products
 
-        results: list[ProductItem] = []
-        for i, item in enumerate(enriched_products):
-            sd = scored[i] if i < len(scored) else {}
-            bbox = item.get("bounding_box", [0.0, 0.0, 1.0, 1.0])
-            try:
-                bbox = [float(v) for v in bbox[:4]]
-                while len(bbox) < 4:
-                    bbox.append(0.0)
-            except Exception:
-                bbox = [0.0, 0.0, 1.0, 1.0]
-
-            usda = item.get("_usda")
-            data_source = "usda_rag" if usda else (
-                "unidentified" if sd.get("scoring") == "Unidentified" else "vision_only"
-            )
-
-            try:
-                score_val = ScoreEnum(sd.get("scoring", "Unidentified"))
-            except ValueError:
-                score_val = ScoreEnum.UNIDENTIFIED
-
-            # Canonical nutrition / ingredients / allergens / tags / NOVA come from the
-            # identification + enrichment item, NOT the scoring output (S1). Scoring only
-            # returns the decision, score_breakdown, reasoning and flagged_ingredients.
-            nutrition = item.get("nutrition") or {}
-            ingredients = item.get("ingredients") or []
-            allergens = item.get("allergens") or []
-            dietary_tags = item.get("dietary_tags") or []
-            breakdown_raw = sd.get("score_breakdown") or {}
-            score_breakdown = ScoreBreakdown(
-                hard_exclusion=bool(breakdown_raw.get("hard_exclusion", False)),
-                hard_exclusion_reasons=breakdown_raw.get("hard_exclusion_reasons", []),
-                philosophy_score=breakdown_raw.get("philosophy_score"),
-                goal_score=breakdown_raw.get("goal_score"),
-                ingredient_score=breakdown_raw.get("ingredient_score"),
-                processing_score=breakdown_raw.get("processing_score"),
-                nutrition_score=breakdown_raw.get("nutrition_score"),
-                total_score=breakdown_raw.get("total_score"),
-            )
-
-            results.append(ProductItem(
-                brand=item.get("brand", "Unknown"),
-                product_name=item.get("product_name", "Unidentified Product"),
-                variant=item.get("variant"),
-                canonical_search_name=item.get("canonical_search_name"),
-                nutritional_facts=NutritionalFacts(
-                    calories=nutrition.get("calories"),
-                    serving_size=nutrition.get("serving_size"),
-                    total_fat_g=nutrition.get("total_fat_g"),
-                    saturated_fat_g=nutrition.get("saturated_fat_g"),
-                    trans_fat_g=nutrition.get("trans_fat_g"),
-                    cholesterol_mg=nutrition.get("cholesterol_mg"),
-                    sodium_mg=nutrition.get("sodium_mg"),
-                    total_carbohydrate_g=nutrition.get("total_carbohydrate_g"),
-                    dietary_fiber_g=nutrition.get("dietary_fiber_g"),
-                    total_sugars_g=nutrition.get("total_sugars_g"),
-                    added_sugars_g=nutrition.get("added_sugars_g"),
-                    protein_g=nutrition.get("protein_g"),
-                    flagged_ingredients=sd.get("flagged_ingredients", []),
-                    detected_ingredients=ingredients,
-                ),
-                scoring=score_val,
-                score_breakdown=score_breakdown,
-                reasoning=sd.get("reasoning", "Could not evaluate this product."),
-                reasoning_by_factor=sd.get("reasoning_by_factor", []),
-                bounding_box=bbox,
-                data_source=data_source,
-                processing_level=item.get("nova_processing_level"),
-                allergens=allergens,
-                dietary_tags=dietary_tags,
-                crop_image=item.get("crop_image"),
-            ))
-
-        return results
+        return [
+            self._to_product_item(item, scored[i] if i < len(scored) else {})
+            for i, item in enumerate(enriched_products)
+        ]
 
     # ── Nutrition plan ────────────────────────────────────────────────────────
 

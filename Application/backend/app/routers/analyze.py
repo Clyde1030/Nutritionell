@@ -105,13 +105,16 @@ async def analyze_shelf(
     max_detections: int | None = Form(
         None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
     ),
+    yolo_model: str | None = Form(
+        None, description="Detection model to run (user-set in Settings): yolo11n / yolo26s / yolo26s_p2"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     image_bytes, mime_type, profile = await _prepare_request(image, profile_id, db)
     try:
         return await gemini_service.analyze_shelf(
             image_bytes=image_bytes, mime_type=mime_type, profile=profile, db=db,
-            max_detections=max_detections,
+            max_detections=max_detections, yolo_model=yolo_model,
         )
     except genai_errors.APIError as exc:
         logger.error("Gemini API error during shelf analysis: %s", exc)
@@ -126,12 +129,16 @@ async def analyze_shelf_stream(
     max_detections: int | None = Form(
         None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
     ),
+    yolo_model: str | None = Form(
+        None, description="Detection model to run (user-set in Settings): yolo11n / yolo26s / yolo26s_p2"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Server-Sent-Events stream of analysis progress.
 
-    Emits `data: {json}\\n\\n` lines with stages: detected, progress, scoring,
-    complete, or error. The client can fall back to /api/analyze if unsupported.
+    Emits `data: {json}\\n\\n` lines with per-item stages: detected, identified_item,
+    analyzed_item, complete, or error. The client can fall back to /api/analyze if
+    streaming is unsupported.
     """
     image_bytes, mime_type, profile = await _prepare_request(image, profile_id, db)
 
@@ -139,7 +146,7 @@ async def analyze_shelf_stream(
         try:
             async for ev in gemini_service.analyze_shelf_stream(
                 image_bytes=image_bytes, mime_type=mime_type, profile=profile, db=db,
-                max_detections=max_detections,
+                max_detections=max_detections, yolo_model=yolo_model,
             ):
                 yield f"data: {json.dumps(ev)}\n\n"
         except genai_errors.APIError as exc:
