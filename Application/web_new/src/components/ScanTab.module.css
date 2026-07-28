@@ -168,6 +168,40 @@
 .stageLegendItem { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
 .stageDot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 
+/* Live results (products stream in as they're identified/analysed) */
+.liveResults { max-width: 640px; margin: 18px auto 0; }
+.liveResultsHead {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 10px;
+}
+.liveResultsCount {
+  font-size: 12px; font-weight: 800; color: var(--accent);
+  background: var(--accent-glow); border-radius: 999px; padding: 2px 9px;
+}
+.liveGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.liveCard {
+  display: flex; flex-direction: column; text-align: left; overflow: hidden;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  animation: liveIn 0.3s ease;
+}
+@keyframes liveIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.liveCardImg {
+  width: 100%; height: 96px; object-fit: cover; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.liveCardBody { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; }
+.liveCardBrand { font-size: 11px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: 0.02em; }
+.liveCardName { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.liveCardScore {
+  align-self: flex-start; margin-top: 4px; font-size: 11.5px; font-weight: 800;
+  border-radius: 999px; padding: 2px 9px;
+}
+.liveCardPending {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 4px;
+  font-size: 11.5px; font-weight: 700; color: var(--sub);
+}
+
 .stepper { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 4px; }
 .stepRow { display: flex; align-items: flex-start; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
 .stepIcon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
