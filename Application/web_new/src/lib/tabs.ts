@@ -1,15 +1,15 @@
 export type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about' | 'appearance';
 
 export const TABS: { key: Tab; label: string; icon: string; path: string }[] = [
-  { key: 'home',         label: 'Home',         icon: '⌂', path: '/' },
-  { key: 'profile',      label: 'Profile',      icon: '◎', path: '/profile' },
-  { key: 'goals',        label: 'Goals',        icon: '◈', path: '/goals' },
-  { key: 'scan',         label: 'Scan',         icon: '⊕', path: '/scan' },
+  { key: 'home',         label: 'Home',         icon: '🏠', path: '/' },
+  { key: 'profile',      label: 'Profile',      icon: '👤', path: '/profile' },
+  { key: 'goals',        label: 'Goals',        icon: '🎯', path: '/goals' },
+  { key: 'scan',         label: 'Scan',         icon: '📷', path: '/scan' },
   { key: 'plan',         label: 'My Plan',      icon: '📋', path: '/plan' },
   { key: 'greenwashing', label: 'Greenwashing', icon: '🔍', path: '/greenwashing' },
   { key: 'ingredients',  label: 'Nutrition',    icon: '🧬', path: '/ingredients' },
-  { key: 'about',        label: 'About',        icon: '✉', path: '/about' },
-  { key: 'appearance',   label: 'Appearance',   icon: '⚙', path: '/appearance' },
+  { key: 'about',        label: 'About',        icon: '✉️', path: '/about' },
+  { key: 'appearance',   label: 'Appearance',   icon: '🎨', path: '/appearance' },
 ];
 
 const TAB_BY_PATH: Record<string, Tab> = TABS.reduce((acc, tab) => {
