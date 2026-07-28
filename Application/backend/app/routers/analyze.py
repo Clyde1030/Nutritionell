@@ -93,7 +93,8 @@ def _gemini_error_detail(exc: genai_errors.APIError) -> tuple[int, str]:
     if code == 429:
         return 429, (
             "AI usage limit reached (Gemini quota or rate limit). "
-            "This is an API credit/quota issue, not your photo — wait a moment and retry."
+            "This is an API credit/quota issue, not your photo — wait a moment and retry, "
+            "or raise the Gemini API rate limit (enable billing / a paid tier)."
         )
     return 503, "The AI analysis service is temporarily unavailable. Please try again in a moment."
 

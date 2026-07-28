@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import random
 import time
 from typing import Optional
 
@@ -62,14 +63,20 @@ ENRICH_MAX_CONCURRENCY = 4
 SCORING_CHUNK_SIZE = 5
 SCORING_MAX_CONCURRENCY = 4
 
-# ── Per-item streaming pipeline ───────────────────────────────────────────────
-# The scan now identifies and analyses products ONE AT A TIME (a single Gemini
-# call per crop / per product) and streams each result as it lands, instead of
-# sending batches. Each item is still processed with bounded concurrency so the
-# whole scan doesn't slow to a serial crawl — these caps set how many single-item
-# Gemini calls are in flight at once.
-IDENTIFY_ITEM_CONCURRENCY = 6   # concurrent single-crop identification calls
-ANALYZE_ITEM_CONCURRENCY = 4    # concurrent per-product enrich→score units
+# ── Hybrid streaming pipeline (call-count-conscious) ──────────────────────────
+# Results still stream in as they're ready, but we keep the Gemini call count low
+# to stay under rate/token limits (a fully one-crop-at-a-time scan made ~3x the
+# calls — brutal on a throttled key):
+#   • identification runs in SMALL batches (several crops per call), and each
+#     batch's products are emitted the moment that batch lands — so products
+#     still appear incrementally, just a few at a time instead of one at a time.
+#   • analysis merges canonical enrichment AND scoring into a SINGLE call per
+#     product (was two), streamed as each product finishes.
+# Concurrency is deliberately modest so a burst of image-heavy calls doesn't
+# spike tokens-per-minute and trip a 429.
+IDENTIFY_STREAM_BATCH_SIZE = 4   # crops per identification call
+IDENTIFY_STREAM_CONCURRENCY = 4  # concurrent identification calls
+ANALYZE_STREAM_CONCURRENCY = 4   # concurrent per-product analysis calls (enrich+score merged)
 
 
 def _eta_ms(t_start: float, done: int, total: int) -> int:
@@ -80,11 +87,16 @@ def _eta_ms(t_start: float, done: int, total: int) -> int:
     elapsed = time.monotonic() - t_start
     return int(round((elapsed / done) * (total - done) * 1000))
 
-# Codes worth retrying: 429 (rate limited) and the 5xx transient overload codes
-# Gemini returns under load (we've seen live 503 "UNAVAILABLE" during scans).
+# Codes worth retrying: 429 (RESOURCE_EXHAUSTED / "TooManyRequests" — the Gemini
+# rate limit) plus the 5xx transient overload codes it returns when busy (we've seen
+# live 503 "UNAVAILABLE"). Retries use exponential backoff WITH JITTER so a burst of
+# concurrent calls that all get throttled don't re-fire in lockstep and re-trip the
+# same per-minute limit. NOTE: retries help ride out short RPM spikes, but they cannot
+# create quota — a persistently rate-limited (free-tier) key needs a higher limit or
+# fewer calls per scan, not more retries.
 _RETRYABLE_CODES = {429, 500, 503, 504}
-_MAX_ATTEMPTS = 3
-_RETRY_BASE_DELAY_SECONDS = 1.0
+_MAX_ATTEMPTS = 5
+_RETRY_BASE_DELAY_SECONDS = 1.5
 
 # Disabling Gemini "thinking" on the mechanical recall passes (identification +
 # enrichment) is a large latency win (I1) with little quality cost — those passes are
@@ -737,6 +749,87 @@ No explanations.
 No additional text."""
 
 
+# Merged canonical-enrichment + scoring for ONE product in a single call (hybrid
+# pipeline). One JSON object: Part A canonical data + Part B scoring decision.
+_ANALYSIS_OUTPUT_SCHEMA = """{
+  "ingredients": [string],
+  "allergens": [string],
+  "dietary_tags": [string],
+  "nova_processing_level": 1 | 2 | 3 | 4 | null,
+  "nutrition": {
+    "serving_size": string,
+    "calories": number,
+    "total_fat_g": number,
+    "saturated_fat_g": number,
+    "trans_fat_g": number,
+    "cholesterol_mg": number,
+    "sodium_mg": number,
+    "total_carbohydrate_g": number,
+    "dietary_fiber_g": number,
+    "total_sugars_g": number,
+    "added_sugars_g": number,
+    "protein_g": number
+  },
+  "scoring": "Great Fit" | "Just OK Fit" | "Neutral Fit" | "Doesn't Fit" | "Unidentified",
+  "score_breakdown": {
+    "hard_exclusion": true|false,
+    "hard_exclusion_reasons": [string],
+    "philosophy_score": number,
+    "goal_score": number,
+    "ingredient_score": number,
+    "processing_score": number,
+    "nutrition_score": number,
+    "total_score": number
+  },
+  "reasoning": string,
+  "reasoning_by_factor": [string],
+  "flagged_ingredients": [string]
+}"""
+
+
+def _build_combined_analysis_prompt(profile_ctx: str, product_block: str) -> str:
+    """One-call canonical enrichment + deterministic scoring for a single product."""
+    return f"""You are a nutrition analysis AI. You are given ONE identified grocery product and a user's nutrition profile. Do TWO things, in order, in a single JSON response.
+
+==============================
+PART A - CANONICAL PRODUCT DATA
+==============================
+Recall the STANDARD canonical ingredients and nutrition facts for this exact commercial product — what a shopper would find on the actual package. Derive allergens and dietary_tags from those canonical ingredients, and estimate nova_processing_level (1-4). If the product cannot be confidently matched to a real commercial product, return an empty ingredients list, empty allergens, and null nutrition values rather than inventing data.
+
+==============================
+PART B - SCORE AGAINST THE PROFILE
+==============================
+Then score the product against the user's profile using the EXACT deterministic methodology below — the same rules every time, not subjective opinion.
+
+--------------------------------------------------
+USER PROFILE
+--------------------------------------------------
+
+{profile_ctx}
+
+--------------------------------------------------
+PRODUCT
+--------------------------------------------------
+
+{product_block}
+
+{_SCORING_SAFETY_BLOCK}
+
+{_SCORING_METHODOLOGY_BLOCK}
+
+{_SCORING_CONSISTENCY_BLOCK}
+
+--------------------------------------------------
+OUTPUT
+--------------------------------------------------
+
+Return ONE JSON object containing BOTH the canonical data (Part A) AND the scoring (Part B), in exactly these fields:
+
+{_ANALYSIS_OUTPUT_SCHEMA}
+
+Return ONLY the JSON object. No markdown. No explanations. No additional text."""
+
+
 class GeminiService:
     def __init__(self):
         self._client: Optional[genai.Client] = None
@@ -752,16 +845,24 @@ class GeminiService:
     async def _generate_content(self, **kwargs):
         """generate_content with retry/backoff for transient Gemini errors (429/5xx).
 
+        The google-genai `generate_content` is a BLOCKING (synchronous) HTTP call, so
+        it is run in a worker thread via asyncio.to_thread. This keeps the event loop
+        free — which is what makes the per-crop / per-product calls actually run
+        concurrently AND lets the SSE progress stream keep flushing while a call is in
+        flight (a blocking call here previously froze the whole stream, so nothing
+        streamed and the connection idled out).
+
         Non-retryable errors (e.g. bad request, auth) and errors that persist past
         the last attempt are re-raised to the caller.
         """
+        client = self.client   # resolve (and lazy-init) on the event loop, not in the thread
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                return self.client.models.generate_content(**kwargs)
+                return await asyncio.to_thread(client.models.generate_content, **kwargs)
             except errors.APIError as exc:
                 if exc.code not in _RETRYABLE_CODES or attempt == _MAX_ATTEMPTS - 1:
                     raise
-                delay = _RETRY_BASE_DELAY_SECONDS * (2 ** attempt)
+                delay = _RETRY_BASE_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 0.75)
                 logger.warning(
                     "Gemini API error %s (attempt %d/%d), retrying in %.1fs: %s",
                     exc.code, attempt + 1, _MAX_ATTEMPTS, delay, exc.message,
@@ -901,8 +1002,10 @@ class GeminiService:
         max_detections: Optional[int] = None,
         yolo_model: Optional[str] = None,
     ):
-        """Item-by-item streamed analysis: identify + analyse each product ONE AT A
-        TIME and emit it the moment it's ready, instead of processing in batches.
+        """Hybrid streamed analysis: identify products in SMALL BATCHES and analyse
+        each product in a SINGLE merged (enrich+score) call, emitting each product the
+        moment it's ready. Fewer Gemini calls than one-at-a-time (which is brutal on a
+        rate-limited key) while results still flow into the UI incrementally.
 
         Products flow into the UI as they land — a new (non-duplicate) product is
         added on identification; its analysis fills in when scored. Duplicate facings
@@ -911,7 +1014,7 @@ class GeminiService:
         Event stages (each a dict with "stage" + fields):
           detecting                          -> YOLO started
           detected         count, boxes, detect_ms
-          identifying      total             -> per-crop identification started
+          identifying      total             -> identification started (batched)
           identified_item  box_index, bbox, status(unique|duplicate|unidentified),
                            product_index, is_duplicate, product?{brand,product_name,
                            variant,crop_image}, done, total, eta_ms
@@ -924,15 +1027,19 @@ class GeminiService:
         profile_ctx = _build_profile_context(profile)
 
         # ── Stage 1: detection (YOLO) ──────────────────────────────────────────
+        # YOLO inference + cropping are blocking/CPU work — run them in a thread so
+        # they don't stall the event loop (which would delay the SSE stream).
         yield {"stage": "detecting"}
         t_det = time.monotonic()
-        boxes = self._detect(image_bytes, max_detections=max_detections, yolo_model=yolo_model)
+        boxes = await asyncio.to_thread(
+            self._detect, image_bytes, max_detections=max_detections, yolo_model=yolo_model
+        )
         detect_ms = (time.monotonic() - t_det) * 1000
         img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
         det_boxes = [pixel_bbox_to_normalized(b["bbox"], img_w, img_h) for b in boxes]
         yield {"stage": "detected", "count": len(boxes), "boxes": det_boxes, "detect_ms": round(detect_ms)}
 
-        crops = crop_boxes(image_bytes, boxes) if boxes else []
+        crops = await asyncio.to_thread(crop_boxes, image_bytes, boxes) if boxes else []
 
         # Shared per-scan state, filled as items stream in.
         products: list[Optional[ProductItem]] = []   # final products, indexed by product_index
@@ -968,34 +1075,40 @@ class GeminiService:
         identified_count = 0
 
         if boxes:
-            sem = asyncio.Semaphore(IDENTIFY_ITEM_CONCURRENCY)
+            # Identify in SMALL batches (several crops per call), emitting each product
+            # the moment its batch lands — far fewer calls than one-per-crop, still
+            # incremental (products appear a few at a time).
+            sem = asyncio.Semaphore(IDENTIFY_STREAM_CONCURRENCY)
+            batches = [list(range(i, min(i + IDENTIFY_STREAM_BATCH_SIZE, len(boxes))))
+                       for i in range(0, len(boxes), IDENTIFY_STREAM_BATCH_SIZE)]
 
-            async def _id_one(i: int):
-                return i, await self._identify_one(crops[i], sem)
+            async def _id_batch(idxs: list[int]):
+                return idxs, await self._identify_batch([crops[i] for i in idxs], sem)
 
             id_done = 0
-            for fut in asyncio.as_completed([_id_one(i) for i in range(len(boxes))]):
-                i, ident = await fut
-                ident = ident or {}
-                ident["bounding_box"] = pixel_bbox_to_normalized(boxes[i]["bbox"], img_w, img_h)
-                ident["crop_image"] = encode_jpeg_data_uri(crops[i])
-                status, pidx, is_new = _register(ident)
-                id_done += 1
-                if self._is_identified(ident):
-                    identified_count += 1
-                ev = {
-                    "stage": "identified_item", "box_index": i, "bbox": ident["bounding_box"],
-                    "status": status, "product_index": pidx, "is_duplicate": status == "duplicate",
-                    "done": id_done, "total": len(boxes), "eta_ms": _eta_ms(t_id, id_done, len(boxes)),
-                }
-                if is_new:   # only a brand-new, non-duplicate product carries an identity payload
-                    ev["product"] = {
-                        "brand": ident.get("brand", "Unknown"),
-                        "product_name": ident.get("product_name", "Unidentified Product"),
-                        "variant": ident.get("variant"),
-                        "crop_image": ident.get("crop_image"),
+            for fut in asyncio.as_completed([_id_batch(idxs) for idxs in batches]):
+                idxs, res = await fut
+                for local, i in enumerate(idxs):
+                    ident = (res[local] if local < len(res) else {}) or {}
+                    ident["bounding_box"] = pixel_bbox_to_normalized(boxes[i]["bbox"], img_w, img_h)
+                    ident["crop_image"] = encode_jpeg_data_uri(crops[i])
+                    status, pidx, is_new = _register(ident)
+                    id_done += 1
+                    if self._is_identified(ident):
+                        identified_count += 1
+                    ev = {
+                        "stage": "identified_item", "box_index": i, "bbox": ident["bounding_box"],
+                        "status": status, "product_index": pidx, "is_duplicate": status == "duplicate",
+                        "done": id_done, "total": len(boxes), "eta_ms": _eta_ms(t_id, id_done, len(boxes)),
                     }
-                yield ev
+                    if is_new:   # only a brand-new, non-duplicate product carries an identity payload
+                        ev["product"] = {
+                            "brand": ident.get("brand", "Unknown"),
+                            "product_name": ident.get("product_name", "Unidentified Product"),
+                            "variant": ident.get("variant"),
+                            "crop_image": ident.get("crop_image"),
+                        }
+                    yield ev
         else:
             # Whole-image fallback (close-up / no YOLO boxes): identify then stream each.
             raw = await self._vision_pass(image_bytes, mime_type, profile)
@@ -1021,14 +1134,14 @@ class GeminiService:
         identify_ms = (time.monotonic() - t_id) * 1000
         yield {"stage": "identified", "identified_count": identified_count, "identify_ms": round(identify_ms)}
 
-        # ── Stage 3: analysis — one product at a time, streamed ─────────────────
+        # ── Stage 3: analysis — one product per call (enrich+score merged), streamed ──
         yield {"stage": "analyzing", "total": len(pending)}
         t_an = time.monotonic()
         if pending:
-            sem = asyncio.Semaphore(ANALYZE_ITEM_CONCURRENCY)
+            sem = asyncio.Semaphore(ANALYZE_STREAM_CONCURRENCY)
 
             async def _an_one(pidx: int, item: dict):
-                return pidx, await self._analyze_one(item, profile_ctx, db, sem)
+                return pidx, await self._analyze_product(item, profile_ctx, db, sem)
 
             an_done = 0
             an_total = len(pending)
@@ -1305,49 +1418,77 @@ class GeminiService:
             scored = []
         return [(scored[k] if k < len(scored) else {}) for k in range(len(chunk))]
 
-    # ── Single-item helpers (per-product streaming pipeline) ──────────────────
+    # ── Per-product analysis (hybrid streaming pipeline) ──────────────────────
 
-    async def _identify_one(self, crop_bytes: bytes, sem: asyncio.Semaphore) -> dict:
-        """Identify ONE crop in its own Gemini call (identity only). {} on failure."""
-        res = await self._identify_batch([crop_bytes], sem)
-        return res[0] if res else {}
+    @staticmethod
+    def _usda_block(usda) -> str:
+        """The USDA hint line(s) for a scoring/analysis prompt ('No USDA data' if none)."""
+        if not usda:
+            return "No USDA data found."
+        nutrients = usda.nutrient_dict()
+        top = {k: v for k, v in list(nutrients.items())[:12]}
+        return (
+            f"USDA: {usda.brand or 'N/A'} – {usda.product_name}\n"
+            f"  Ingredients: {usda.ingredients or 'N/A'}\n"
+            f"  Nutrients/100g: {json.dumps(top)}\n"
+            f"  Allergen flags: gluten={usda.contains_gluten}, peanuts={usda.contains_peanuts}, "
+            f"dairy={usda.contains_dairy}, soy={usda.contains_soy}"
+        )
 
-    async def _enrich_one(self, item: dict, sem: asyncio.Semaphore) -> None:
-        """Fill canonical ingredients/nutrition/allergens/tags/NOVA onto ONE identified
-        product IN PLACE (single Gemini call). Unidentified items are left untouched."""
-        if not self._is_identified(item):
-            return
-        res = await self._enrich_batch([item], sem)
-        data = res[0] if res else {}
-        if not data:
-            return
-        item["ingredients"] = data.get("ingredients") or item.get("ingredients", [])
-        item["allergens"] = data.get("allergens") or item.get("allergens", [])
-        item["dietary_tags"] = data.get("dietary_tags") or item.get("dietary_tags", [])
-        if data.get("nova_processing_level") is not None:
-            item["nova_processing_level"] = data.get("nova_processing_level")
-        if data.get("nutrition"):
-            item["nutrition"] = data.get("nutrition")
-
-    async def _score_one(self, item: dict, profile_ctx: str, sem: asyncio.Semaphore) -> dict:
-        """Score ONE product in its own Gemini call. {} on failure."""
-        res = await self._score_chunk([item], profile_ctx, sem)
-        return res[0] if res else {}
-
-    async def _analyze_one(
+    async def _analyze_product(
         self, item: dict, profile_ctx: str, db: AsyncSession, sem: asyncio.Semaphore
     ) -> ProductItem:
-        """Full per-product analysis: canonical enrichment → USDA lookup → scoring,
-        returned as a finished ProductItem. Each Gemini sub-call is gated by `sem`
-        so overall concurrency stays bounded while products are processed one by one."""
-        await self._enrich_one(item, sem)
+        """One product's full analysis in a SINGLE Gemini call: canonical enrichment
+        (ingredients/nutrition/allergens/NOVA) AND deterministic scoring, merged. USDA
+        lookup (no Gemini) provides a grounding hint. Returns a finished ProductItem."""
         usda_food = await rag_service.lookup(
             product_name=item.get("product_name", ""),
             brand=item.get("brand", ""),
             db=db,
         )
         item["_usda"] = usda_food
-        sd = await self._score_one(item, profile_ctx, sem)
+
+        variant = item.get("variant") or "Unknown"
+        possible = item.get("possible_variants") or []
+        line = (f"Product: {item.get('brand', 'Unknown')} — "
+                f"{item.get('product_name', 'Unknown')} (variant: {variant})")
+        if possible:
+            line += f" [possible variants: {', '.join(possible)}]"
+        product_block = f"{line}\n{self._usda_block(usda_food)}"
+
+        prompt = _build_combined_analysis_prompt(profile_ctx, product_block)
+        async with sem:
+            response = await self._generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=_json_config(0.1),
+            )
+        try:
+            data = json.loads(response.text)
+            if isinstance(data, list):
+                data = data[0] if data else {}
+        except Exception as exc:
+            logger.error("Combined analysis parse error: %s", exc)
+            data = {}
+
+        # Merge Part A (canonical) onto the item, pass Part B (scoring) as the decision.
+        if data.get("ingredients"):
+            item["ingredients"] = data["ingredients"]
+        if data.get("allergens"):
+            item["allergens"] = data["allergens"]
+        if data.get("dietary_tags"):
+            item["dietary_tags"] = data["dietary_tags"]
+        if data.get("nova_processing_level") is not None:
+            item["nova_processing_level"] = data["nova_processing_level"]
+        if data.get("nutrition"):
+            item["nutrition"] = data["nutrition"]
+        sd = {
+            "scoring": data.get("scoring", "Neutral Fit"),
+            "score_breakdown": data.get("score_breakdown"),
+            "reasoning": data.get("reasoning", "Could not evaluate this product."),
+            "reasoning_by_factor": data.get("reasoning_by_factor", []),
+            "flagged_ingredients": data.get("flagged_ingredients", []),
+        }
         return self._to_product_item(item, sd)
 
     @staticmethod
