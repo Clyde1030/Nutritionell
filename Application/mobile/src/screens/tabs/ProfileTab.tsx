@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ENDPOINTS } from '../../config';
 import { useProfileId } from '../../hooks/useProfile';
+import type { AppPalette } from '../../theme/palettes';
 import type { AllergyOption, IngredientCategory, PhilosophyOption, ProfileOptions, UserProfile } from '../../types';
 
 const C = {
@@ -15,7 +16,7 @@ const C = {
   white: '#ffffff',
 };
 
-export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
+export default function ProfileTab({ onSaved, palette }: { onSaved?: () => void; palette: AppPalette }) {
   const { profileId, setProfileId } = useProfileId();
   const [options, setOptions] = useState<ProfileOptions | null>(null);
   const [saving, setSaving] = useState(false);
@@ -103,9 +104,9 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
 
   if (!options) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.accent} size="large" />
-        <Text style={styles.sub}>Connecting to server…</Text>
+      <View style={[styles.centered, { backgroundColor: palette.bg }]}>
+        <ActivityIndicator color={palette.accent} size="large" />
+        <Text style={[styles.sub, { color: palette.sub }]}>Connecting to server…</Text>
       </View>
     );
   }
@@ -117,84 +118,88 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
     ?? 'Moderate processing';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.pageHeader}>
-            <Text style={styles.pageTitle}>Profile</Text>
-            <Text style={styles.pageSub}>Everything here shapes your product analysis</Text>
+            <Text style={[styles.pageTitle, { color: palette.text }]}>Profile</Text>
+            <Text style={[styles.pageSub, { color: palette.sub }]}>Everything here shapes your product analysis</Text>
           </View>
 
           {/* Name */}
-          <Label text="Your Name" />
-          <TextInput style={styles.input} value={name} onChangeText={setName}
-            placeholder="Optional" placeholderTextColor={C.sub} />
+          <Label text="Your Name" palette={palette} />
+          <TextInput style={[styles.input, { backgroundColor: palette.card, borderColor: palette.border, color: palette.text }]} value={name} onChangeText={setName}
+            placeholder="Optional" placeholderTextColor={palette.sub} />
 
           {/* ── Philosophy ─────────────────────────────────────────────── */}
-          <Label text="Dietary Philosophy" />
+          <Label text="Dietary Philosophy" palette={palette} />
           {!isCustomPhilosophy && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}
               contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
               {options.dietary_philosophies.map(p => (
                 <Pressable key={p.key}
-                  style={[styles.pillBtn, philosophy === p.key && styles.pillBtnActive]}
+                  style={[
+                    styles.pillBtn,
+                    { backgroundColor: palette.card, borderColor: palette.border },
+                    philosophy === p.key && { backgroundColor: palette.accent, borderColor: palette.accent },
+                  ]}
                   onPress={() => setPhilosophy(p.key)}>
-                  <Text style={[styles.pillBtnText, philosophy === p.key && styles.pillBtnTextActive]}>{p.key}</Text>
+                  <Text style={[styles.pillBtnText, { color: palette.sub }, philosophy === p.key && styles.pillBtnTextActive]}>{p.key}</Text>
                 </Pressable>
               ))}
             </ScrollView>
           )}
 
           {!isCustomPhilosophy && philData && (
-            <View style={styles.infoCard}>
-              <Text style={styles.infoCardTitle}>{philData.key}</Text>
-              <Text style={styles.infoCardBody}>{philData.summary}</Text>
+            <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Text style={[styles.infoCardTitle, { color: palette.text }]}>{philData.key}</Text>
+              <Text style={[styles.infoCardBody, { color: palette.sub }]}>{philData.summary}</Text>
               <View style={styles.actionRow}>
-                <Pressable style={styles.actionBtn} onPress={() => setPhilosophyModal(philData)}>
-                  <Text style={styles.actionBtnText}>Learn more</Text>
+                <Pressable style={[styles.actionBtn, { borderColor: palette.border }]} onPress={() => setPhilosophyModal(philData)}>
+                  <Text style={[styles.actionBtnText, { color: palette.sub }]}>Learn more</Text>
                 </Pressable>
-                <Pressable style={styles.actionBtn} onPress={() => setCustomizeModal(philData)}>
-                  <Text style={styles.actionBtnText}>Customize</Text>
+                <Pressable style={[styles.actionBtn, { borderColor: palette.border }]} onPress={() => setCustomizeModal(philData)}>
+                  <Text style={[styles.actionBtnText, { color: palette.sub }]}>Customize</Text>
                 </Pressable>
-                <Pressable style={[styles.actionBtn, { borderColor: C.accent }]} onPress={() => setBuildOwnModal(true)}>
-                  <Text style={[styles.actionBtnText, { color: C.accent }]}>Build my own</Text>
+                <Pressable style={[styles.actionBtn, { borderColor: palette.accent }]} onPress={() => setBuildOwnModal(true)}>
+                  <Text style={[styles.actionBtnText, { color: palette.accent }]}>Build my own</Text>
                 </Pressable>
               </View>
             </View>
           )}
 
           {isCustomPhilosophy && (
-            <View style={[styles.infoCard, { borderColor: C.accent }]}>
-              <Text style={[styles.infoCardTitle, { color: C.accent }]}>Custom philosophy active</Text>
-              <Text style={styles.infoCardBody} numberOfLines={2}>{customPhilosophyText || 'No text yet'}</Text>
+            <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.accent }]}>
+              <Text style={[styles.infoCardTitle, { color: palette.accent }]}>Custom philosophy active</Text>
+              <Text style={[styles.infoCardBody, { color: palette.sub }]} numberOfLines={2}>{customPhilosophyText || 'No text yet'}</Text>
               <View style={styles.actionRow}>
-                <Pressable style={[styles.actionBtn, { borderColor: C.accent }]} onPress={() => setBuildOwnModal(true)}>
-                  <Text style={[styles.actionBtnText, { color: C.accent }]}>Edit</Text>
+                <Pressable style={[styles.actionBtn, { borderColor: palette.accent }]} onPress={() => setBuildOwnModal(true)}>
+                  <Text style={[styles.actionBtnText, { color: palette.accent }]}>Edit</Text>
                 </Pressable>
-                <Pressable style={styles.actionBtn} onPress={() => setIsCustomPhilosophy(false)}>
-                  <Text style={styles.actionBtnText}>Use standard</Text>
+                <Pressable style={[styles.actionBtn, { borderColor: palette.border }]} onPress={() => setIsCustomPhilosophy(false)}>
+                  <Text style={[styles.actionBtnText, { color: palette.sub }]}>Use standard</Text>
                 </Pressable>
               </View>
             </View>
           )}
 
           {/* ── Allergies ──────────────────────────────────────────────── */}
-          <Label text="Allergies & Conditions" hint="Tap ℹ to see what each covers" />
-          <View style={styles.listGroup}>
+          <Label text="Allergies & Conditions" hint="Tap ℹ to see what each covers" palette={palette} />
+          <View style={[styles.listGroup, { backgroundColor: palette.card, borderColor: palette.border }]}> 
             {options.allergies_and_conditions.map(a => {
               const on = selectedAllergies.includes(a.key);
               return (
-                <View key={a.key} style={styles.listRow}>
-                  <Pressable style={[styles.listCheck, on && styles.listCheckOn]} onPress={() => toggleAllergy(a.key)}>
-                    <View style={[styles.checkbox, on && styles.checkboxOn]}>
+                <View key={a.key} style={[styles.listRow, { borderBottomColor: palette.border }]}> 
+                  <Pressable style={[styles.listCheck, on && { backgroundColor: palette.accent + '22' }]} onPress={() => toggleAllergy(a.key)}>
+                    <View style={[styles.checkbox, { borderColor: palette.border }, on && { backgroundColor: palette.accent, borderColor: palette.accent }]}>
                       {on && <Text style={styles.checkmark}>✓</Text>}
                     </View>
-                    <Text style={[styles.listLabel, on && { color: C.text }]}>{a.key}</Text>
+                    <Text style={[styles.listLabel, { color: on ? palette.text : palette.sub }]}>{a.key}</Text>
                   </Pressable>
                   <Pressable onPress={() => setAllergyModal(a)} style={styles.infoTap}>
-                    <Text style={styles.infoTapText}>ℹ</Text>
+                    <Text style={[styles.infoTapText, { color: palette.sub }]}>ℹ</Text>
                   </Pressable>
                 </View>
               );
@@ -202,20 +207,20 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
           </View>
 
           {/* ── Ingredients to Avoid ───────────────────────────────────── */}
-          <Label text="Ingredients to Avoid" hint="Tap ℹ to see examples and health concerns" />
-          <View style={styles.listGroup}>
+          <Label text="Ingredients to Avoid" hint="Tap ℹ to see examples and health concerns" palette={palette} />
+          <View style={[styles.listGroup, { backgroundColor: palette.card, borderColor: palette.border }]}> 
             {options.ingredient_categories.map(cat => {
               const on = avoidedCategories.includes(cat.category);
               return (
-                <View key={cat.category} style={styles.listRow}>
-                  <Pressable style={[styles.listCheck, on && styles.listCheckOn]} onPress={() => toggleCategory(cat.category)}>
-                    <View style={[styles.checkbox, on && { backgroundColor: C.red, borderColor: C.red }]}>
+                <View key={cat.category} style={[styles.listRow, { borderBottomColor: palette.border }]}> 
+                  <Pressable style={[styles.listCheck, on && { backgroundColor: palette.accent + '22' }]} onPress={() => toggleCategory(cat.category)}>
+                    <View style={[styles.checkbox, { borderColor: palette.border }, on && { backgroundColor: palette.accent, borderColor: palette.accent }]}>
                       {on && <Text style={styles.checkmark}>✓</Text>}
                     </View>
-                    <Text style={[styles.listLabel, on && { color: C.text }]}>{cat.category}</Text>
+                    <Text style={[styles.listLabel, { color: on ? palette.text : palette.sub }]}>{cat.category}</Text>
                   </Pressable>
                   <Pressable onPress={() => setIngredientModal(cat)} style={styles.infoTap}>
-                    <Text style={styles.infoTapText}>ℹ</Text>
+                    <Text style={[styles.infoTapText, { color: palette.sub }]}>ℹ</Text>
                   </Pressable>
                 </View>
               );
@@ -223,22 +228,26 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
           </View>
 
           {/* ── Processing Tolerance ───────────────────────────────────── */}
-          <Label text="Processed Food Tolerance" hint={toleranceLabel} />
+          <Label text="Processed Food Tolerance" hint={toleranceLabel} palette={palette} />
           <View style={styles.segmentRow}>
             {[0, 1, 2, 3, 4].map(n => (
-              <Pressable key={n} style={[styles.segment, processingTolerance === n && styles.segmentOn]}
+              <Pressable key={n} style={[
+                styles.segment,
+                { backgroundColor: palette.card, borderColor: palette.border },
+                processingTolerance === n && { backgroundColor: palette.accent, borderColor: palette.accent },
+              ]}
                 onPress={() => setProcessingTolerance(n)}>
-                <Text style={[styles.segmentText, processingTolerance === n && styles.segmentTextOn]}>{n}</Text>
+                <Text style={[styles.segmentText, { color: processingTolerance === n ? C.white : palette.sub }]}>{n}</Text>
               </Pressable>
             ))}
           </View>
           <View style={styles.segmentLabels}>
-            <Text style={styles.segmentHint}>Whole foods only</Text>
-            <Text style={styles.segmentHint}>No restriction</Text>
+            <Text style={[styles.segmentHint, { color: palette.sub }]}>Whole foods only</Text>
+            <Text style={[styles.segmentHint, { color: palette.sub }]}>No restriction</Text>
           </View>
 
           {/* Save */}
-          <Pressable style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
+          <Pressable style={[styles.saveBtn, { backgroundColor: palette.accent }, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
             {saving ? <ActivityIndicator color="#fff" size="small" /> : (
               <Text style={styles.saveBtnText}>{profileId ? 'Update Profile' : 'Save Profile'}</Text>
             )}
@@ -247,23 +256,23 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
       </KeyboardAvoidingView>
 
       {/* Allergy info modal */}
-      <BottomSheet visible={!!allergyModal} onClose={() => setAllergyModal(null)} title={allergyModal?.key ?? ''}>
-        <Text style={styles.sheetBody}>{allergyModal?.description}</Text>
+      <BottomSheet visible={!!allergyModal} onClose={() => setAllergyModal(null)} title={allergyModal?.key ?? ''} palette={palette}>
+        <Text style={[styles.sheetBody, { color: palette.sub }]}>{allergyModal?.description}</Text>
       </BottomSheet>
 
       {/* Philosophy learn more */}
-      <BottomSheet visible={!!philosophyModal} onClose={() => setPhilosophyModal(null)} title={philosophyModal?.key ?? ''}>
-        <Text style={styles.sheetBody}>{philosophyModal?.description}</Text>
+      <BottomSheet visible={!!philosophyModal} onClose={() => setPhilosophyModal(null)} title={philosophyModal?.key ?? ''} palette={palette}>
+        <Text style={[styles.sheetBody, { color: palette.sub }]}>{philosophyModal?.description}</Text>
         {philosophyModal?.avoid_categories && philosophyModal.avoid_categories.length > 0 && (
           <>
-            <Text style={styles.sheetSectionLabel}>Avoids</Text>
-            {philosophyModal.avoid_categories.map(c => <Text key={c} style={styles.sheetBullet}>· {c}</Text>)}
+            <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Avoids</Text>
+            {philosophyModal.avoid_categories.map(c => <Text key={c} style={[styles.sheetBullet, { color: palette.sub }]}>· {c}</Text>)}
           </>
         )}
         {philosophyModal?.favour_categories && philosophyModal.favour_categories.length > 0 && (
           <>
-            <Text style={styles.sheetSectionLabel}>Favours</Text>
-            {philosophyModal.favour_categories.map(c => <Text key={c} style={styles.sheetBullet}>· {c}</Text>)}
+            <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Favours</Text>
+            {philosophyModal.favour_categories.map(c => <Text key={c} style={[styles.sheetBullet, { color: palette.sub }]}>· {c}</Text>)}
           </>
         )}
       </BottomSheet>
@@ -272,19 +281,21 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
       <CustomizeModal visible={!!customizeModal} philosophy={customizeModal}
         customizations={philosophyCustom}
         onSave={c => { setPhilosophyCustom(c); setCustomizeModal(null); }}
-        onClose={() => setCustomizeModal(null)} />
+        onClose={() => setCustomizeModal(null)}
+        palette={palette} />
 
       {/* Build own */}
       <BuildModal visible={buildOwnModal} initialText={customPhilosophyText}
         onSave={t => { setCustomPhilosophyText(t); setIsCustomPhilosophy(true); setBuildOwnModal(false); }}
-        onClose={() => setBuildOwnModal(false)} />
+        onClose={() => setBuildOwnModal(false)}
+        palette={palette} />
 
       {/* Ingredient info */}
-      <BottomSheet visible={!!ingredientModal} onClose={() => setIngredientModal(null)} title={ingredientModal?.category ?? ''}>
-        <Text style={[styles.sheetSectionLabel, { color: C.yellow }]}>Why avoid?</Text>
-        <Text style={styles.sheetBody}>{ingredientModal?.concern}</Text>
-        <Text style={styles.sheetSectionLabel}>Common examples</Text>
-        {ingredientModal?.examples.map(e => <Text key={e} style={styles.sheetBullet}>· {e}</Text>)}
+      <BottomSheet visible={!!ingredientModal} onClose={() => setIngredientModal(null)} title={ingredientModal?.category ?? ''} palette={palette}>
+        <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Why avoid?</Text>
+        <Text style={[styles.sheetBody, { color: palette.sub }]}>{ingredientModal?.concern}</Text>
+        <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Common examples</Text>
+        {ingredientModal?.examples.map(e => <Text key={e} style={[styles.sheetBullet, { color: palette.sub }]}>· {e}</Text>)}
       </BottomSheet>
     </SafeAreaView>
   );
@@ -292,40 +303,41 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
 
 // ── Reusable sub-components ───────────────────────────────────────────────────
 
-function Label({ text, hint }: { text: string; hint?: string }) {
+function Label({ text, hint, palette }: { text: string; hint?: string; palette: AppPalette }) {
   return (
     <View style={{ marginTop: 28, marginBottom: 10 }}>
-      <Text style={styles.label}>{text}</Text>
-      {hint && <Text style={styles.labelHint}>{hint}</Text>}
+      <Text style={[styles.label, { color: palette.text }]}>{text}</Text>
+      {hint && <Text style={[styles.labelHint, { color: palette.sub }]}>{hint}</Text>}
     </View>
   );
 }
 
-function BottomSheet({ visible, onClose, title, children }: {
-  visible: boolean; onClose: () => void; title: string; children: React.ReactNode;
+function BottomSheet({ visible, onClose, title, children, palette }: {
+  visible: boolean; onClose: () => void; title: string; children: React.ReactNode; palette: AppPalette;
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>{title}</Text>
+      <View style={[styles.sheet, { backgroundColor: palette.card }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
+        <Text style={[styles.sheetTitle, { color: palette.text }]}>{title}</Text>
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
           {children}
         </ScrollView>
-        <Pressable style={styles.sheetCloseBtn} onPress={onClose}>
-          <Text style={styles.sheetCloseBtnText}>Done</Text>
+        <Pressable style={[styles.sheetCloseBtn, { backgroundColor: palette.bar }]} onPress={onClose}>
+          <Text style={[styles.sheetCloseBtnText, { color: palette.sub }]}>Done</Text>
         </Pressable>
       </View>
     </Modal>
   );
 }
 
-function CustomizeModal({ visible, philosophy, customizations, onSave, onClose }: {
+function CustomizeModal({ visible, philosophy, customizations, onSave, onClose, palette }: {
   visible: boolean; philosophy: PhilosophyOption | null;
   customizations: { stricter: string[]; lenient: string[]; extra: string[] };
   onSave: (c: { stricter: string[]; lenient: string[]; extra: string[] }) => void;
   onClose: () => void;
+  palette: AppPalette;
 }) {
   const [s, setS] = useState('');
   const [l, setL] = useState('');
@@ -337,21 +349,21 @@ function CustomizeModal({ visible, philosophy, customizations, onSave, onClose }
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { maxHeight: '90%' }]}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>Customize: {philosophy?.key}</Text>
+      <View style={[styles.sheet, { maxHeight: '90%', backgroundColor: palette.card }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
+        <Text style={[styles.sheetTitle, { color: palette.text }]}>Customize: {philosophy?.key}</Text>
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-          <Text style={styles.sheetSectionLabel}>Make stricter</Text>
-          <TextInput style={[styles.input, { minHeight: 72 }]} multiline value={s} onChangeText={setS}
-            placeholder="One rule per line" placeholderTextColor={C.sub} textAlignVertical="top" />
-          <Text style={styles.sheetSectionLabel}>Make more lenient</Text>
-          <TextInput style={[styles.input, { minHeight: 72 }]} multiline value={l} onChangeText={setL}
-            placeholder="One rule per line" placeholderTextColor={C.sub} textAlignVertical="top" />
-          <Text style={styles.sheetSectionLabel}>Extra rules</Text>
-          <TextInput style={[styles.input, { minHeight: 72 }]} multiline value={e} onChangeText={setE}
-            placeholder="One rule per line" placeholderTextColor={C.sub} textAlignVertical="top" />
+          <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Make stricter</Text>
+          <TextInput style={[styles.input, { minHeight: 72, backgroundColor: palette.bg, borderColor: palette.border, color: palette.text }]} multiline value={s} onChangeText={setS}
+            placeholder="One rule per line" placeholderTextColor={palette.sub} textAlignVertical="top" />
+          <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Make more lenient</Text>
+          <TextInput style={[styles.input, { minHeight: 72, backgroundColor: palette.bg, borderColor: palette.border, color: palette.text }]} multiline value={l} onChangeText={setL}
+            placeholder="One rule per line" placeholderTextColor={palette.sub} textAlignVertical="top" />
+          <Text style={[styles.sheetSectionLabel, { color: palette.accent }]}>Extra rules</Text>
+          <TextInput style={[styles.input, { minHeight: 72, backgroundColor: palette.bg, borderColor: palette.border, color: palette.text }]} multiline value={e} onChangeText={setE}
+            placeholder="One rule per line" placeholderTextColor={palette.sub} textAlignVertical="top" />
         </ScrollView>
-        <Pressable style={styles.saveBtn} onPress={() => onSave({
+        <Pressable style={[styles.saveBtn, { backgroundColor: palette.accent }]} onPress={() => onSave({
           stricter: s.split('\n').map(x => x.trim()).filter(Boolean),
           lenient: l.split('\n').map(x => x.trim()).filter(Boolean),
           extra: e.split('\n').map(x => x.trim()).filter(Boolean),
@@ -363,33 +375,33 @@ function CustomizeModal({ visible, philosophy, customizations, onSave, onClose }
   );
 }
 
-function BuildModal({ visible, initialText, onSave, onClose }: {
-  visible: boolean; initialText: string; onSave: (t: string) => void; onClose: () => void;
+function BuildModal({ visible, initialText, onSave, onClose, palette }: {
+  visible: boolean; initialText: string; onSave: (t: string) => void; onClose: () => void; palette: AppPalette;
 }) {
   const [text, setText] = useState(initialText);
   useEffect(() => { if (visible) setText(initialText); }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { maxHeight: '92%' }]}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>Build Your Own Philosophy</Text>
+      <View style={[styles.sheet, { maxHeight: '92%', backgroundColor: palette.card }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
+        <Text style={[styles.sheetTitle, { color: palette.text }]}>Build Your Own Philosophy</Text>
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-          <Text style={styles.sheetBody}>
+          <Text style={[styles.sheetBody, { color: palette.sub }]}> 
             Write your dietary rules in plain language. The AI will use this exactly as written when scoring products.
           </Text>
-          <Text style={[styles.sheetBody, { fontStyle: 'italic', marginTop: 8, color: C.sub }]}>
+          <Text style={[styles.sheetBody, { fontStyle: 'italic', marginTop: 8, color: palette.sub }]}>
             Example: "Mostly plant-based with occasional wild fish. No seed oils, no refined sugar, max 5 ingredients. Prioritise fermented foods."
           </Text>
-          <TextInput style={[styles.input, { minHeight: 180, marginTop: 12 }]} multiline value={text}
-            onChangeText={setText} placeholder="Describe your philosophy…" placeholderTextColor={C.sub}
+          <TextInput style={[styles.input, { minHeight: 180, marginTop: 12, backgroundColor: palette.bg, borderColor: palette.border, color: palette.text }]} multiline value={text}
+            onChangeText={setText} placeholder="Describe your philosophy…" placeholderTextColor={palette.sub}
             textAlignVertical="top" />
         </ScrollView>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Pressable style={[styles.saveBtn, { flex: 1, backgroundColor: C.surface, marginTop: 0 }]} onPress={onClose}>
-            <Text style={[styles.saveBtnText, { color: C.sub }]}>Cancel</Text>
+          <Pressable style={[styles.saveBtn, { flex: 1, backgroundColor: palette.bar, marginTop: 0 }]} onPress={onClose}>
+            <Text style={[styles.saveBtnText, { color: palette.sub }]}>Cancel</Text>
           </Pressable>
-          <Pressable style={[styles.saveBtn, { flex: 2, marginTop: 0 }]} onPress={() => onSave(text.trim())}>
+          <Pressable style={[styles.saveBtn, { flex: 2, marginTop: 0, backgroundColor: palette.accent }]} onPress={() => onSave(text.trim())}>
             <Text style={styles.saveBtnText}>Save</Text>
           </Pressable>
         </View>
@@ -400,13 +412,13 @@ function BuildModal({ visible, initialText, onSave, onClose }: {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 60 },
-  centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   sub: { color: C.sub, fontSize: 13 },
   pageHeader: { marginBottom: 8 },
-  pageTitle: { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  pageSub: { color: C.sub, fontSize: 13, marginTop: 4 },
+  pageTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  pageSub: { fontSize: 13, marginTop: 4 },
   label: { color: C.text, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
   labelHint: { color: C.sub, fontSize: 11, marginTop: 2 },
   input: {
@@ -467,7 +479,7 @@ const styles = StyleSheet.create({
   segmentHint: { color: C.sub, fontSize: 10 },
   // Save
   saveBtn: {
-    marginTop: 32, backgroundColor: C.accent,
+    marginTop: 32,
     borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
   saveBtnText: { color: C.white, fontSize: 16, fontWeight: '700' },

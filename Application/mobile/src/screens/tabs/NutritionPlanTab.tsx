@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ENDPOINTS } from '../../config';
 import { useProfileId } from '../../hooks/useProfile';
+import type { AppPalette } from '../../theme/palettes';
 import type { NutritionPlanResponse, NutritionPlanStep } from '../../types';
 
 const C = {
@@ -20,7 +21,7 @@ const PRIORITY = {
   low:    { color: C.green,  label: 'Lower priority' },
 };
 
-export default function NutritionPlanTab() {
+export default function NutritionPlanTab({ palette }: { palette: AppPalette }) {
   const { profileId } = useProfileId();
   const [plan, setPlan] = useState<NutritionPlanResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,26 +52,26 @@ export default function NutritionPlanTab() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={C.accent} />
-        <Text style={styles.loadTitle}>Building your plan</Text>
-        <Text style={styles.sub}>This takes about 10 seconds…</Text>
+      <View style={[styles.centered, { backgroundColor: palette.bg }]}>
+        <ActivityIndicator size="large" color={palette.accent} />
+        <Text style={[styles.loadTitle, { color: palette.text }]}>Building your plan</Text>
+        <Text style={[styles.sub, { color: palette.sub }]}>This takes about 10 seconds…</Text>
       </View>
     );
   }
 
   if (!plan) {
     return (
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
         <View style={styles.empty}>
-          <View style={styles.emptyIcon}><Text style={{ fontSize: 40 }}>📋</Text></View>
-          <Text style={styles.emptyTitle}>Your Nutrition Plan</Text>
-          <Text style={styles.sub}>
+          <View style={[styles.emptyIcon, { backgroundColor: palette.accent + '22' }]}><Text style={{ fontSize: 40 }}>📋</Text></View>
+          <Text style={[styles.emptyTitle, { color: palette.text }]}>Your Nutrition Plan</Text>
+          <Text style={[styles.sub, { color: palette.sub }]}>
             Based on your philosophy, goals, allergies, and ingredient preferences, the AI generates a
             personalised step-by-step nutrition roadmap.
           </Text>
 
-          <View style={styles.requirementsCard}>
+          <View style={[styles.requirementsCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
             {[
               ['✓', 'Complete your Profile'],
               ['✓', 'Set your Health Goals'],
@@ -78,12 +79,12 @@ export default function NutritionPlanTab() {
             ].map(([icon, text]) => (
               <View key={text} style={styles.reqRow}>
                 <Text style={[styles.reqIcon, { color: C.green }]}>{icon}</Text>
-                <Text style={styles.reqText}>{text}</Text>
+                <Text style={[styles.reqText, { color: palette.sub }]}>{text}</Text>
               </View>
             ))}
           </View>
 
-          <Pressable style={styles.generateBtn} onPress={generate}>
+          <Pressable style={[styles.generateBtn, { backgroundColor: palette.accent }]} onPress={generate}>
             <Text style={styles.generateBtnText}>Generate My Plan</Text>
           </Pressable>
 
@@ -98,29 +99,29 @@ export default function NutritionPlanTab() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.planHeader}>
-          <Text style={styles.pageTitle}>My Plan</Text>
-          <Pressable style={styles.regenBtn} onPress={generate}>
-            <Text style={styles.regenBtnText}>Regenerate</Text>
+          <Text style={[styles.pageTitle, { color: palette.text }]}>My Plan</Text>
+          <Pressable style={[styles.regenBtn, { backgroundColor: palette.card }]} onPress={generate}>
+            <Text style={[styles.regenBtnText, { color: palette.sub }]}>Regenerate</Text>
           </Pressable>
         </View>
 
         {/* Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryText}>{plan.summary}</Text>
+        <View style={[styles.summaryCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <Text style={[styles.summaryText, { color: palette.text }]}>{plan.summary}</Text>
         </View>
 
         {/* Daily targets */}
         {Object.keys(plan.daily_targets).length > 0 && (
-          <Section title="Daily Targets">
+          <Section title="Daily Targets" palette={palette}>
             <View style={styles.targetGrid}>
               {Object.entries(plan.daily_targets).map(([k, v]) => (
-                <View key={k} style={styles.targetTile}>
-                  <Text style={styles.targetValue}>{v}</Text>
-                  <Text style={styles.targetLabel}>{k}</Text>
+                <View key={k} style={[styles.targetTile, { backgroundColor: palette.card, borderColor: palette.border }]}>
+                  <Text style={[styles.targetValue, { color: palette.text }]}>{v}</Text>
+                  <Text style={[styles.targetLabel, { color: palette.sub }]}>{k}</Text>
                 </View>
               ))}
             </View>
@@ -129,11 +130,11 @@ export default function NutritionPlanTab() {
 
         {/* Weekly focus */}
         {plan.weekly_focus_areas.length > 0 && (
-          <Section title="This Week">
+          <Section title="This Week" palette={palette}>
             {plan.weekly_focus_areas.map((area, i) => (
               <View key={i} style={styles.focusRow}>
-                <View style={styles.focusDot} />
-                <Text style={styles.focusText}>{area}</Text>
+                <View style={[styles.focusDot, { backgroundColor: palette.accent }]} />
+                <Text style={[styles.focusText, { color: palette.sub }]}>{area}</Text>
               </View>
             ))}
           </Section>
@@ -141,14 +142,14 @@ export default function NutritionPlanTab() {
 
         {/* Steps */}
         {plan.steps.length > 0 && (
-          <Section title="Action Steps">
-            {plan.steps.map((step, i) => <StepCard key={i} step={step} index={i + 1} />)}
+          <Section title="Action Steps" palette={palette}>
+            {plan.steps.map((step, i) => <StepCard key={i} step={step} index={i + 1} palette={palette} />)}
           </Section>
         )}
 
         {/* Foods */}
         {plan.foods_to_emphasise.length > 0 && (
-          <Section title="Eat More">
+          <Section title="Eat More" palette={palette}>
             <View style={styles.foodGrid}>
               {plan.foods_to_emphasise.map((f, i) => (
                 <View key={i} style={[styles.foodTag, { borderColor: C.green }]}>
@@ -160,7 +161,7 @@ export default function NutritionPlanTab() {
         )}
 
         {plan.foods_to_limit.length > 0 && (
-          <Section title="Limit or Avoid">
+          <Section title="Limit or Avoid" palette={palette}>
             <View style={styles.foodGrid}>
               {plan.foods_to_limit.map((f, i) => (
                 <View key={i} style={[styles.foodTag, { borderColor: C.red }]}>
@@ -173,18 +174,18 @@ export default function NutritionPlanTab() {
 
         {/* Supplements */}
         {plan.supplements_to_consider.length > 0 && (
-          <Section title="Supplements to Consider">
+          <Section title="Supplements to Consider" palette={palette}>
             {plan.supplements_to_consider.map((s, i) => (
-              <Text key={i} style={styles.bullet}>· {s}</Text>
+              <Text key={i} style={[styles.bullet, { color: palette.sub }]}>· {s}</Text>
             ))}
           </Section>
         )}
 
         {/* Lifestyle */}
         {plan.lifestyle_notes.length > 0 && (
-          <Section title="Lifestyle Notes">
+          <Section title="Lifestyle Notes" palette={palette}>
             {plan.lifestyle_notes.map((n, i) => (
-              <Text key={i} style={styles.bullet}>· {n}</Text>
+              <Text key={i} style={[styles.bullet, { color: palette.sub }]}>· {n}</Text>
             ))}
           </Section>
         )}
@@ -195,55 +196,55 @@ export default function NutritionPlanTab() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, palette }: { title: string; children: React.ReactNode; palette: AppPalette }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: palette.sub }]}>{title}</Text>
       {children}
     </View>
   );
 }
 
-function StepCard({ step, index }: { step: NutritionPlanStep; index: number }) {
+function StepCard({ step, index, palette }: { step: NutritionPlanStep; index: number; palette: AppPalette }) {
   const p = PRIORITY[step.priority] ?? PRIORITY.medium;
   return (
-    <View style={[styles.stepCard, { borderLeftColor: p.color }]}>
+    <View style={[styles.stepCard, { borderLeftColor: p.color, backgroundColor: palette.card, borderColor: palette.border }]}> 
       <View style={styles.stepTop}>
-        <View style={styles.stepNum}>
-          <Text style={styles.stepNumText}>{index}</Text>
+        <View style={[styles.stepNum, { backgroundColor: palette.accent + '22' }]}>
+          <Text style={[styles.stepNumText, { color: palette.accent }]}>{index}</Text>
         </View>
-        <Text style={styles.stepTitle} numberOfLines={2}>{step.title}</Text>
+        <Text style={[styles.stepTitle, { color: palette.text }]} numberOfLines={2}>{step.title}</Text>
         <View style={[styles.priorityTag, { borderColor: p.color }]}>
           <Text style={[styles.priorityTagText, { color: p.color }]}>{p.label}</Text>
         </View>
       </View>
-      <Text style={styles.stepDetail}>{step.detail}</Text>
+      <Text style={[styles.stepDetail, { color: palette.sub }]}>{step.detail}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
-  centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  loadTitle: { color: C.text, fontSize: 20, fontWeight: '700' },
-  sub: { color: C.sub, fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  loadTitle: { fontSize: 20, fontWeight: '700' },
+  sub: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
 
   empty: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 16 },
   emptyIcon: {
     width: 80, height: 80, borderRadius: 24, backgroundColor: C.accentLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  emptyTitle: { color: C.text, fontSize: 22, fontWeight: '800' },
+  emptyTitle: { fontSize: 22, fontWeight: '800' },
   requirementsCard: {
-    width: '100%', backgroundColor: C.card, borderRadius: 14,
-    borderWidth: 1, borderColor: C.border, padding: 16, gap: 10,
+    width: '100%', borderRadius: 14,
+    borderWidth: 1, padding: 16, gap: 10,
   },
   reqRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   reqIcon: { fontSize: 14, fontWeight: '800' },
   reqText: { color: C.sub, fontSize: 13 },
   generateBtn: {
-    width: '100%', backgroundColor: C.accent,
+    width: '100%',
     borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
   generateBtnText: { color: C.white, fontSize: 16, fontWeight: '700' },
@@ -255,45 +256,45 @@ const styles = StyleSheet.create({
 
   // Plan content
   planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  pageTitle: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  regenBtn: { backgroundColor: C.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  regenBtnText: { color: C.sub, fontSize: 12, fontWeight: '600' },
+  pageTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  regenBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  regenBtnText: { fontSize: 12, fontWeight: '600' },
   summaryCard: {
-    backgroundColor: C.card, borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: C.border, marginBottom: 8,
+    borderRadius: 14, padding: 16,
+    borderWidth: 1, marginBottom: 8,
   },
-  summaryText: { color: C.text, fontSize: 14, lineHeight: 22 },
+  summaryText: { fontSize: 14, lineHeight: 22 },
   section: { marginTop: 24 },
   sectionTitle: {
-    color: C.sub, fontSize: 10, fontWeight: '700',
+    fontSize: 10, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12,
   },
   targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   targetTile: {
-    backgroundColor: C.card, borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: C.border, alignItems: 'center', minWidth: '28%',
+    borderRadius: 12, padding: 12,
+    borderWidth: 1, alignItems: 'center', minWidth: '28%',
   },
-  targetValue: { color: C.text, fontSize: 15, fontWeight: '800' },
-  targetLabel: { color: C.sub, fontSize: 10, marginTop: 2, textAlign: 'center' },
+  targetValue: { fontSize: 15, fontWeight: '800' },
+  targetLabel: { fontSize: 10, marginTop: 2, textAlign: 'center' },
   focusRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  focusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent },
-  focusText: { color: C.sub, fontSize: 14, flex: 1, lineHeight: 20 },
+  focusDot: { width: 6, height: 6, borderRadius: 3 },
+  focusText: { fontSize: 14, flex: 1, lineHeight: 20 },
   stepCard: {
-    backgroundColor: C.card, borderRadius: 14, padding: 14,
-    marginBottom: 8, borderLeftWidth: 3, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, padding: 14,
+    marginBottom: 8, borderLeftWidth: 3, borderWidth: 1,
   },
   stepTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8, flexWrap: 'wrap' },
   stepNum: {
-    width: 24, height: 24, borderRadius: 12, backgroundColor: C.accentLight,
+    width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  stepNumText: { color: C.accent, fontSize: 11, fontWeight: '800' },
-  stepTitle: { color: C.text, fontSize: 14, fontWeight: '700', flex: 1 },
+  stepNumText: { fontSize: 11, fontWeight: '800' },
+  stepTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
   priorityTag: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   priorityTagText: { fontSize: 9, fontWeight: '700' },
-  stepDetail: { color: C.sub, fontSize: 13, lineHeight: 20 },
+  stepDetail: { fontSize: 13, lineHeight: 20 },
   foodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   foodTag: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   foodTagText: { fontSize: 12, fontWeight: '600' },
-  bullet: { color: C.sub, fontSize: 13, lineHeight: 22, paddingLeft: 4, marginBottom: 2 },
+  bullet: { fontSize: 13, lineHeight: 22, paddingLeft: 4, marginBottom: 2 },
 });

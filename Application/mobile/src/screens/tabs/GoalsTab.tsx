@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ENDPOINTS } from '../../config';
 import { useProfileId } from '../../hooks/useProfile';
+import type { AppPalette } from '../../theme/palettes';
 import type { UserProfile } from '../../types';
 
 const C = {
@@ -28,7 +29,7 @@ const PROMPTS = [
   'Support hormonal balance',
 ];
 
-export default function GoalsTab() {
+export default function GoalsTab({ palette }: { palette: AppPalette }) {
   const { profileId } = useProfileId();
   const [goals, setGoals] = useState('');
   const [saving, setSaving] = useState(false);
@@ -71,31 +72,31 @@ export default function GoalsTab() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
 
           <View style={styles.pageHeader}>
-            <Text style={styles.pageTitle}>Health Goals</Text>
-            <Text style={styles.pageSub}>The AI references these when explaining every product score</Text>
+            <Text style={[styles.pageTitle, { color: palette.text }]}>Health Goals</Text>
+            <Text style={[styles.pageSub, { color: palette.sub }]}>The AI references these when explaining every product score</Text>
           </View>
 
           <TextInput
-            style={styles.textArea}
+            style={[styles.textArea, { backgroundColor: palette.card, borderColor: palette.border, color: palette.text }]}
             multiline
             value={goals}
             onChangeText={t => { setGoals(t); setSaved(false); }}
             placeholder={"Describe your goals in your own words…\n\ne.g. I want to build muscle, reduce body fat, and improve gut health. I need more protein, less sugar, and want to avoid ultra-processed foods."}
-            placeholderTextColor={C.sub}
+            placeholderTextColor={palette.sub}
             textAlignVertical="top"
           />
 
-          <Text style={styles.sectionLabel}>Quick add</Text>
+          <Text style={[styles.sectionLabel, { color: palette.sub }]}>Quick add</Text>
           <View style={styles.promptGrid}>
             {PROMPTS.map(p => (
-              <Pressable key={p} style={styles.promptChip} onPress={() => addPrompt(p)}>
-                <Text style={styles.promptText}>+ {p}</Text>
+              <Pressable key={p} style={[styles.promptChip, { backgroundColor: palette.card, borderColor: palette.border }]} onPress={() => addPrompt(p)}>
+                <Text style={[styles.promptText, { color: palette.sub }]}>+ {p}</Text>
               </Pressable>
             ))}
           </View>
@@ -107,7 +108,7 @@ export default function GoalsTab() {
           )}
 
           <Pressable
-            style={[styles.saveBtn, (saving || !profileId) && { opacity: 0.5 }, saved && { backgroundColor: C.green }]}
+            style={[styles.saveBtn, { backgroundColor: palette.accent }, (saving || !profileId) && { opacity: 0.5 }, saved && { backgroundColor: C.green }]}
             onPress={handleSave} disabled={saving || !profileId}>
             {saving
               ? <ActivityIndicator color="#fff" size="small" />
@@ -121,33 +122,33 @@ export default function GoalsTab() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 60 },
   pageHeader: { marginBottom: 20 },
-  pageTitle: { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  pageSub: { color: C.sub, fontSize: 13, marginTop: 4 },
+  pageTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  pageSub: { fontSize: 13, marginTop: 4 },
   textArea: {
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderWidth: 1,
     borderRadius: 16, color: C.text, fontSize: 15,
     paddingHorizontal: 16, paddingVertical: 14, minHeight: 160, lineHeight: 22,
   },
   sectionLabel: {
-    color: C.sub, fontSize: 11, fontWeight: '700',
+    fontSize: 11, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 24, marginBottom: 10,
   },
   promptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   promptChip: {
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderWidth: 1,
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
-  promptText: { color: C.sub, fontSize: 12, fontWeight: '500' },
+  promptText: { fontSize: 12, fontWeight: '500' },
   warningCard: {
     backgroundColor: '#2a1215', borderWidth: 1, borderColor: '#5b2020',
     borderRadius: 12, padding: 12, marginTop: 16,
   },
   warningText: { color: '#f87171', fontSize: 13 },
   saveBtn: {
-    marginTop: 28, backgroundColor: C.accent,
+    marginTop: 28,
     borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
   saveBtnText: { color: C.white, fontSize: 16, fontWeight: '700' },

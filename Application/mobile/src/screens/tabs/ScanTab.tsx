@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ENDPOINTS, USE_MOCK_ANALYZE } from '../../config';
 import { useProfileId } from '../../hooks/useProfile';
 import ProductDetailCard from '../../components/ProductDetailCard';
+import type { AppPalette } from '../../theme/palettes';
 import type { ProductItem, ScoreEnum, ShelfAnalysisResponse } from '../../types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS } from '../../types';
 
@@ -30,7 +31,7 @@ if (Platform.OS !== 'web') {
 
 type View = 'picker' | 'camera' | 'analyzing' | 'results';
 
-export default function ScanTab() {
+export default function ScanTab({ palette }: { palette: AppPalette }) {
   const { profileId } = useProfileId();
   const [permission, requestPermission] = useCameraPermissions();
   const [view, setView] = useState<View>('picker');
@@ -109,12 +110,12 @@ export default function ScanTab() {
   // ── Analyzing state ───────────────────────────────────────────────────────
   if (view === 'analyzing') {
     return (
-      <View style={styles.fill}>
-        <ActivityIndicator size="large" color={C.accent} />
-        <Text style={styles.analyzingTitle}>Analyzing shelf</Text>
-        <Text style={styles.analyzingStatus}>{statusText}</Text>
+      <View style={[styles.fill, { backgroundColor: palette.bg }]}>
+        <ActivityIndicator size="large" color={palette.accent} />
+        <Text style={[styles.analyzingTitle, { color: palette.text }]}>Analyzing shelf</Text>
+        <Text style={[styles.analyzingStatus, { color: palette.sub }]}>{statusText}</Text>
         <View style={styles.dots}>
-          {[0, 1, 2].map(i => <View key={i} style={styles.dot} />)}
+          {[0, 1, 2].map(i => <View key={i} style={[styles.dot, { backgroundColor: palette.accent }]} />)}
         </View>
       </View>
     );
@@ -127,6 +128,7 @@ export default function ScanTab() {
       onBack={() => setView('picker')}
       permission={permission}
       requestPermission={requestPermission}
+      palette={palette}
     />;
   }
 
@@ -139,7 +141,7 @@ export default function ScanTab() {
     }, {} as Record<ScoreEnum, number>);
 
     return (
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
           {/* Annotated image */}
@@ -172,49 +174,49 @@ export default function ScanTab() {
               counts[s] ? (
                 <View key={s} style={[styles.chip, { borderColor: SCORE_COLORS[s] }]}>
                   <Text style={[styles.chipCount, { color: SCORE_COLORS[s] }]}>{counts[s]}</Text>
-                  <Text style={styles.chipLabel}>{s}</Text>
+                  <Text style={[styles.chipLabel, { color: palette.sub }]}>{s}</Text>
                 </View>
               ) : null
             )}
-            <Pressable style={styles.newScanBtn} onPress={() => { setResult(null); setView('picker'); }}>
-              <Text style={styles.newScanText}>New scan</Text>
+            <Pressable style={[styles.newScanBtn, { backgroundColor: palette.card }]} onPress={() => { setResult(null); setView('picker'); }}>
+              <Text style={[styles.newScanText, { color: palette.sub }]}>New scan</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.listHeader}>Products — tap for details</Text>
-          {result.products.map((p, i) => <ProductRow key={i} product={p} onPress={() => setSelected(p)} />)}
+          <Text style={[styles.listHeader, { color: palette.sub }]}>Products — tap for details</Text>
+          {result.products.map((p, i) => <ProductRow key={i} product={p} onPress={() => setSelected(p)} palette={palette} />)}
         </ScrollView>
-        <ProductDetailCard product={selected} onClose={() => setSelected(null)} />
+        <ProductDetailCard product={selected} onClose={() => setSelected(null)} palette={palette} />
       </SafeAreaView>
     );
   }
 
   // ── Picker / home view ────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
       <View style={styles.pickerScreen}>
         <View style={styles.pickerHeader}>
-          <Text style={styles.pageTitle}>Scan a Shelf</Text>
-          <Text style={styles.pageSub}>Take a photo or upload one from your library</Text>
+          <Text style={[styles.pageTitle, { color: palette.text }]}>Scan a Shelf</Text>
+          <Text style={[styles.pageSub, { color: palette.sub }]}>Take a photo or upload one from your library</Text>
         </View>
 
         {/* Big action buttons */}
         <View style={styles.actionCards}>
-          <Pressable style={styles.actionCard} onPress={openCamera}>
+          <Pressable style={[styles.actionCard, { backgroundColor: palette.card, borderColor: palette.border }]} onPress={openCamera}>
             <Text style={styles.actionCardIcon}>📷</Text>
-            <Text style={styles.actionCardTitle}>Take Photo</Text>
-            <Text style={styles.actionCardSub}>Use your camera</Text>
+            <Text style={[styles.actionCardTitle, { color: palette.text }]}>Take Photo</Text>
+            <Text style={[styles.actionCardSub, { color: palette.sub }]}>Use your camera</Text>
           </Pressable>
-          <Pressable style={styles.actionCard} onPress={pickFromLibrary}>
+          <Pressable style={[styles.actionCard, { backgroundColor: palette.card, borderColor: palette.border }]} onPress={pickFromLibrary}>
             <Text style={styles.actionCardIcon}>🖼️</Text>
-            <Text style={styles.actionCardTitle}>Upload Image</Text>
-            <Text style={styles.actionCardSub}>From your library</Text>
+            <Text style={[styles.actionCardTitle, { color: palette.text }]}>Upload Image</Text>
+            <Text style={[styles.actionCardSub, { color: palette.sub }]}>From your library</Text>
           </Pressable>
         </View>
 
         {/* How it works */}
-        <View style={styles.howItWorks}>
-          <Text style={styles.howTitle}>How it works</Text>
+        <View style={[styles.howItWorks, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <Text style={[styles.howTitle, { color: palette.text }]}>How it works</Text>
           {[
             ['1', 'Snap or upload a photo of a grocery shelf'],
             ['2', 'AI identifies every product and reads the label'],
@@ -222,8 +224,8 @@ export default function ScanTab() {
             ['4', 'Tap any product for full nutrition details'],
           ].map(([n, t]) => (
             <View key={n} style={styles.howRow}>
-              <View style={styles.howNum}><Text style={styles.howNumText}>{n}</Text></View>
-              <Text style={styles.howText}>{t}</Text>
+              <View style={[styles.howNum, { backgroundColor: palette.accent + '33' }]}><Text style={[styles.howNumText, { color: palette.accent }]}>{n}</Text></View>
+              <Text style={[styles.howText, { color: palette.sub }]}>{t}</Text>
             </View>
           ))}
         </View>
@@ -239,24 +241,25 @@ export default function ScanTab() {
 }
 
 // ── Native camera sub-component ───────────────────────────────────────────────
-function NativeCameraView({ onCapture, onBack, permission, requestPermission }: {
+function NativeCameraView({ onCapture, onBack, permission, requestPermission, palette }: {
   onCapture: (uri: string, mime: string) => void;
   onBack: () => void;
   permission: any;
   requestPermission: () => Promise<any>;
+  palette: AppPalette;
 }) {
   const camRef = React.useRef<any>(null);
   const [capturing, setCapturing] = useState(false);
 
   if (!permission?.granted) {
     return (
-      <View style={styles.fill}>
-        <Text style={styles.permText}>Camera access needed to scan shelves</Text>
-        <Pressable style={styles.permBtn} onPress={requestPermission}>
+      <View style={[styles.fill, { backgroundColor: palette.bg }]}>
+        <Text style={[styles.permText, { color: palette.sub }]}>Camera access needed to scan shelves</Text>
+        <Pressable style={[styles.permBtn, { backgroundColor: palette.accent }]} onPress={requestPermission}>
           <Text style={styles.permBtnText}>Grant Access</Text>
         </Pressable>
         <Pressable onPress={onBack} style={{ marginTop: 12 }}>
-          <Text style={{ color: C.sub }}>Go back</Text>
+          <Text style={{ color: palette.sub }}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -308,11 +311,11 @@ function NativeCameraView({ onCapture, onBack, permission, requestPermission }: 
 }
 
 // ── ProductRow ────────────────────────────────────────────────────────────────
-function ProductRow({ product, onPress }: { product: ProductItem; onPress: () => void }) {
+function ProductRow({ product, onPress, palette }: { product: ProductItem; onPress: () => void; palette: AppPalette }) {
   const color = SCORE_COLORS[product.scoring as ScoreEnum];
   const bg = SCORE_BG[product.scoring as ScoreEnum];
   return (
-    <Pressable onPress={onPress} style={[styles.productRow, { borderLeftColor: color }]}>
+    <Pressable onPress={onPress} style={[styles.productRow, { borderLeftColor: color, backgroundColor: palette.card }]}> 
       <View style={styles.productTop}>
         <View style={[styles.scorePill, { backgroundColor: bg, borderColor: color }]}>
           <Text style={[styles.scorePillText, { color }]}>{product.scoring}</Text>
@@ -325,11 +328,11 @@ function ProductRow({ product, onPress }: { product: ProductItem; onPress: () =>
           </View>
         )}
       </View>
-      <Text style={styles.productBrand}>{product.brand}</Text>
-      <Text style={styles.productName}>{product.product_name}</Text>
+      <Text style={[styles.productBrand, { color: palette.sub }]}>{product.brand}</Text>
+      <Text style={[styles.productName, { color: palette.text }]}>{product.product_name}</Text>
       {product.reasoning_by_factor.length > 0
-        ? product.reasoning_by_factor.map((f, i) => <Text key={i} style={styles.factor}>{f}</Text>)
-        : <Text style={styles.factor}>{product.reasoning}</Text>
+        ? product.reasoning_by_factor.map((f, i) => <Text key={i} style={[styles.factor, { color: palette.sub }]}>{f}</Text>)
+        : <Text style={[styles.factor, { color: palette.sub }]}>{product.reasoning}</Text>
       }
     </Pressable>
   );
@@ -337,39 +340,39 @@ function ProductRow({ product, onPress }: { product: ProductItem; onPress: () =>
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-  fill: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  analyzingTitle: { color: C.text, fontSize: 22, fontWeight: '700' },
-  analyzingStatus: { color: C.sub, fontSize: 14 },
+  safe: { flex: 1 },
+  fill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  analyzingTitle: { fontSize: 22, fontWeight: '700' },
+  analyzingStatus: { fontSize: 14 },
   dots: { flexDirection: 'row', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.accent },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 
   // Picker / home
   pickerScreen: { flex: 1, padding: 20 },
   pickerHeader: { marginBottom: 28 },
-  pageTitle: { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  pageSub: { color: C.sub, fontSize: 13, marginTop: 4 },
+  pageTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  pageSub: { fontSize: 13, marginTop: 4 },
   actionCards: { flexDirection: 'row', gap: 12 },
   actionCard: {
-    flex: 1, backgroundColor: C.card, borderRadius: 18,
-    borderWidth: 1, borderColor: C.border, padding: 20,
+    flex: 1, borderRadius: 18,
+    borderWidth: 1, padding: 20,
     alignItems: 'center', gap: 8,
   },
   actionCardIcon: { fontSize: 36 },
-  actionCardTitle: { color: C.text, fontSize: 15, fontWeight: '700' },
-  actionCardSub: { color: C.sub, fontSize: 12 },
+  actionCardTitle: { fontSize: 15, fontWeight: '700' },
+  actionCardSub: { fontSize: 12 },
   howItWorks: {
-    backgroundColor: C.card, borderRadius: 16, borderWidth: 1,
-    borderColor: C.border, padding: 16, marginTop: 24, gap: 12,
+    borderRadius: 16, borderWidth: 1,
+    padding: 16, marginTop: 24, gap: 12,
   },
-  howTitle: { color: C.text, fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  howTitle: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
   howRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   howNum: {
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: C.accent + '33', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  howNumText: { color: C.accent, fontSize: 12, fontWeight: '800' },
-  howText: { color: C.sub, fontSize: 13, flex: 1 },
+  howNumText: { fontSize: 12, fontWeight: '800' },
+  howText: { fontSize: 13, flex: 1 },
   warningCard: {
     backgroundColor: '#1a0d0d', borderWidth: 1, borderColor: '#4a1515',
     borderRadius: 12, padding: 12, marginTop: 16,
@@ -384,8 +387,8 @@ const styles = StyleSheet.create({
   shutterRow: { position: 'absolute', bottom: 48, left: 0, right: 0, alignItems: 'center' },
   shutter: { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
-  permText: { color: C.sub, fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },
-  permBtn: { backgroundColor: C.accent, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12, marginTop: 12 },
+  permText: { fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },
+  permBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12, marginTop: 12 },
   permBtnText: { color: C.white, fontWeight: '700', fontSize: 15 },
 
   // Results
@@ -397,17 +400,17 @@ const styles = StyleSheet.create({
   summaryBar: { flexDirection: 'row', gap: 8, padding: 12, flexWrap: 'wrap', alignItems: 'center' },
   chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, alignItems: 'center' },
   chipCount: { fontSize: 16, fontWeight: '800' },
-  chipLabel: { color: C.sub, fontSize: 9, fontWeight: '600' },
-  newScanBtn: { marginLeft: 'auto', backgroundColor: C.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  newScanText: { color: C.sub, fontSize: 12, fontWeight: '600' },
-  listHeader: { color: C.sub, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 14, marginBottom: 8 },
-  productRow: { backgroundColor: C.card, marginHorizontal: 10, marginBottom: 8, borderRadius: 14, padding: 14, borderLeftWidth: 3 },
+  chipLabel: { fontSize: 9, fontWeight: '600' },
+  newScanBtn: { marginLeft: 'auto', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  newScanText: { fontSize: 12, fontWeight: '600' },
+  listHeader: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 14, marginBottom: 8 },
+  productRow: { marginHorizontal: 10, marginBottom: 8, borderRadius: 14, padding: 14, borderLeftWidth: 3 },
   productTop: { flexDirection: 'row', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
   scorePill: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   scorePillText: { fontSize: 11, fontWeight: '700' },
   novaTag: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   novaTagText: { fontSize: 10, fontWeight: '600' },
-  productBrand: { color: C.sub, fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  productName: { color: C.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  factor: { color: C.sub, fontSize: 12, lineHeight: 18 },
+  productBrand: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  productName: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  factor: { fontSize: 12, lineHeight: 18 },
 });

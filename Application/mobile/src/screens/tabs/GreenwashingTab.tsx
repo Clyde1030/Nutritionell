@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ENDPOINTS } from '../../config';
+import type { AppPalette } from '../../theme/palettes';
 
 const C = {
   bg: '#09090f', card: '#111118', border: '#1f1f2e', surface: '#16161f',
@@ -19,7 +20,7 @@ type GreenwashResult = {
   claims: ClaimVerdict[];
 };
 
-export default function GreenwashingTab() {
+export default function GreenwashingTab({ palette }: { palette: AppPalette }) {
   const [loading, setLoading] = useState(false);
   const [imageUri, setImageUri] = useState('');
   const [result, setResult] = useState<GreenwashResult | null>(null);
@@ -47,47 +48,47 @@ export default function GreenwashingTab() {
     }
   };
 
-  const scoreColor = (s: number | null) => (s == null ? C.sub : s >= 70 ? C.green : s >= 40 ? C.yellow : C.red);
+  const scoreColor = (s: number | null) => (s == null ? palette.sub : s >= 70 ? C.green : s >= 40 ? C.yellow : C.red);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Greenwashing Detection</Text>
-        <Text style={styles.sub}>Upload one product front-label photo to check claim honesty.</Text>
+        <Text style={[styles.title, { color: palette.text }]}>Greenwashing Detection</Text>
+        <Text style={[styles.sub, { color: palette.sub }]}>Upload one product front-label photo to check claim honesty.</Text>
 
-        <Pressable style={styles.uploadBtn} onPress={pick}>
+        <Pressable style={[styles.uploadBtn, { backgroundColor: palette.accent }]} onPress={pick}>
           <Text style={styles.uploadBtnText}>Select Product Photo</Text>
         </Pressable>
 
         {loading && (
           <View style={styles.centered}>
-            <ActivityIndicator color={C.accent} size="large" />
-            <Text style={styles.sub}>Analyzing claims…</Text>
+            <ActivityIndicator color={palette.accent} size="large" />
+            <Text style={[styles.sub, { color: palette.sub }]}>Analyzing claims…</Text>
           </View>
         )}
 
         {!!imageUri && (
-          <View style={styles.imageWrap}>
+          <View style={[styles.imageWrap, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
           </View>
         )}
 
         {result && (
-          <View style={styles.card}>
-            <Text style={styles.product}>{result.product_name ?? 'Unknown product'}</Text>
+          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <Text style={[styles.product, { color: palette.text }]}>{result.product_name ?? 'Unknown product'}</Text>
             {result.overall_score != null && (
               <Text style={[styles.score, { color: scoreColor(result.overall_score) }]}>
                 Honesty Score: {result.overall_score}/100
               </Text>
             )}
-            <Text style={styles.verdict}>{result.verdict}</Text>
+            <Text style={[styles.verdict, { color: palette.sub }]}>{result.verdict}</Text>
 
             {result.claims?.length ? (
               <View style={{ marginTop: 10 }}>
                 {result.claims.map((c, i) => (
-                  <View key={i} style={styles.claimRow}>
-                    <Text style={styles.claimTitle}>{c.claim}</Text>
-                    <Text style={styles.claimBody}>{c.explanation}</Text>
+                  <View key={i} style={[styles.claimRow, { borderTopColor: palette.border }]}>
+                    <Text style={[styles.claimTitle, { color: palette.text }]}>{c.claim}</Text>
+                    <Text style={[styles.claimBody, { color: palette.sub }]}>{c.explanation}</Text>
                   </View>
                 ))}
               </View>
@@ -100,20 +101,20 @@ export default function GreenwashingTab() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 40 },
-  title: { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  sub: { color: C.sub, fontSize: 13, marginTop: 6 },
-  uploadBtn: { marginTop: 18, borderRadius: 14, backgroundColor: C.accent, alignItems: 'center', paddingVertical: 14 },
+  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  sub: { fontSize: 13, marginTop: 6 },
+  uploadBtn: { marginTop: 18, borderRadius: 14, alignItems: 'center', paddingVertical: 14 },
   uploadBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   centered: { alignItems: 'center', gap: 10, marginTop: 18 },
-  imageWrap: { marginTop: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 10 },
+  imageWrap: { marginTop: 16, borderWidth: 1, borderRadius: 14, padding: 10 },
   image: { width: '100%', height: 240, borderRadius: 10 },
-  card: { marginTop: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
-  product: { color: C.text, fontSize: 17, fontWeight: '800' },
+  card: { marginTop: 16, borderWidth: 1, borderRadius: 14, padding: 14 },
+  product: { fontSize: 17, fontWeight: '800' },
   score: { marginTop: 8, fontSize: 16, fontWeight: '800' },
-  verdict: { color: C.sub, marginTop: 8, lineHeight: 20 },
-  claimRow: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
-  claimTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
-  claimBody: { color: C.sub, marginTop: 4, lineHeight: 19, fontSize: 12.5 },
+  verdict: { marginTop: 8, lineHeight: 20 },
+  claimRow: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  claimTitle: { fontSize: 14, fontWeight: '700' },
+  claimBody: { marginTop: 4, lineHeight: 19, fontSize: 12.5 },
 });

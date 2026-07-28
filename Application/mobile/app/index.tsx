@@ -98,13 +98,13 @@ export default function App() {
       </View>
 
       <View style={styles.screen}>
-        {activeTab === 'home'    && <HomeTab onNavigate={(t) => handleTabSelect(t as Tab)} />}
-        {activeTab === 'profile' && <ProfileTab onSaved={() => handleTabSelect('scan')} />}
-        {activeTab === 'goals'   && <GoalsTab />}
-        {activeTab === 'scan'    && <ScanTab />}
-        {activeTab === 'plan'    && <NutritionPlanTab />}
-        {activeTab === 'greenwashing' && <GreenwashingTab />}
-        {activeTab === 'ingredients' && <IngredientAnalyticsTab />}
+        {activeTab === 'home'    && <HomeTab onNavigate={(t) => handleTabSelect(t as Tab)} palette={palette} />}
+        {activeTab === 'profile' && <ProfileTab onSaved={() => handleTabSelect('scan')} palette={palette} />}
+        {activeTab === 'goals'   && <GoalsTab palette={palette} />}
+        {activeTab === 'scan'    && <ScanTab palette={palette} />}
+        {activeTab === 'plan'    && <NutritionPlanTab palette={palette} />}
+        {activeTab === 'greenwashing' && <GreenwashingTab palette={palette} />}
+        {activeTab === 'ingredients' && <IngredientAnalyticsTab palette={palette} />}
         {activeTab === 'about' && <AboutTab palette={palette} />}
         {activeTab === 'appearance' && <AppearanceTab activePaletteName={activePaletteName} onSelectPalette={onSelectPalette} palette={palette} />}
       </View>
