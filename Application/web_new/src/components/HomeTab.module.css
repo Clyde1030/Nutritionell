@@ -48,6 +48,34 @@
 }
 .missionText { font-size: 16px; line-height: 1.65; color: var(--text); max-width: 700px; margin: 0 auto; }
 
+/* Problem & Solution (two side-by-side cards) */
+.problemSolution { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+.psCard {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 26px 26px; display: flex; flex-direction: column;
+}
+.psProblem { border-color: rgba(217,79,92,0.35); background: rgba(217,79,92,0.06); }
+.psSolution { border-color: var(--accent); background: var(--accent-glow); }
+.psLabelProblem {
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--red); margin-bottom: 16px;
+}
+.psLabelSolution {
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 12px;
+}
+.psList { list-style: none; display: flex; flex-direction: column; gap: 13px; margin: 0; padding: 0; }
+.psItem {
+  position: relative; padding-left: 20px;
+  font-size: 14.5px; line-height: 1.5; color: var(--text);
+}
+.psItem::before {
+  content: ''; position: absolute; left: 2px; top: 7px;
+  width: 7px; height: 7px; border-radius: 999px; background: var(--red);
+}
+.psBrand { font-size: 21px; font-weight: 800; letter-spacing: -0.3px; color: var(--accent); margin-bottom: 8px; }
+.psText { font-size: 15px; line-height: 1.6; color: var(--text); }
+
 /* Value proposition */
 .valueList { display: flex; flex-direction: column; gap: 12px; }
 .valueRow {
@@ -106,5 +134,5 @@
   .wrap { padding: 24px 16px 48px; }
   .title { font-size: 34px; }
   .subtitle { font-size: 16px; }
-  .steps, .features { grid-template-columns: 1fr; }
+  .steps, .features, .problemSolution { grid-template-columns: 1fr; }
 }
