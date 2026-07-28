@@ -14,15 +14,15 @@ import { initTheme } from '@/lib/theme';
 
 type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about' | 'settings';
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'home',          label: 'Home',          icon: '⌂' },
-  { key: 'profile',       label: 'Profile',       icon: '◎' },
-  { key: 'goals',         label: 'Goals',         icon: '◈' },
-  { key: 'scan',          label: 'Scan',          icon: '⊕' },
-  { key: 'plan',          label: 'My Plan',       icon: '≡' },
+  { key: 'home',          label: 'Home',          icon: '🏠' },
+  { key: 'profile',       label: 'Profile',       icon: '👤' },
+  { key: 'goals',         label: 'Goals',         icon: '🎯' },
+  { key: 'scan',          label: 'Scan',          icon: '📷' },
+  { key: 'plan',          label: 'My Plan',       icon: '📋' },
   { key: 'greenwashing',  label: 'Greenwashing',  icon: '🔍' },
   { key: 'ingredients',   label: 'Nutrition',     icon: '🧬' },
-  { key: 'about',         label: 'Contact Us',    icon: '✉' },
-  { key: 'settings',      label: 'Settings',      icon: '⚙' },
+  { key: 'about',         label: 'Contact Us',    icon: '✉️' },
+  { key: 'settings',      label: 'Settings',      icon: '⚙️' },
 ];
 
 export default function Home() {
