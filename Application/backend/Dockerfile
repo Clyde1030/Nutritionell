@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY Application/backend/ ./
 COPY Model/yolov11n_all_final.pkl /Model/yolov11n_all_final.pkl
+COPY Model/yolo26s_final.pkl /Model/yolo26s_final.pkl
+COPY Model/yolo26s_p2_final.pkl /Model/yolo26s_p2_final.pkl
 
 EXPOSE 8000
 

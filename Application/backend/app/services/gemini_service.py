@@ -1139,9 +1139,10 @@ class GeminiService:
         t_an = time.monotonic()
         if pending:
             sem = asyncio.Semaphore(ANALYZE_STREAM_CONCURRENCY)
+            db_lock = asyncio.Lock()
 
             async def _an_one(pidx: int, item: dict):
-                return pidx, await self._analyze_product(item, profile_ctx, db, sem)
+                return pidx, await self._analyze_product(item, profile_ctx, db, sem, db_lock)
 
             an_done = 0
             an_total = len(pending)
@@ -1436,16 +1437,21 @@ class GeminiService:
         )
 
     async def _analyze_product(
-        self, item: dict, profile_ctx: str, db: AsyncSession, sem: asyncio.Semaphore
+        self, item: dict, profile_ctx: str, db: AsyncSession, sem: asyncio.Semaphore,
+        db_lock: asyncio.Lock,
     ) -> ProductItem:
         """One product's full analysis in a SINGLE Gemini call: canonical enrichment
         (ingredients/nutrition/allergens/NOVA) AND deterministic scoring, merged. USDA
         lookup (no Gemini) provides a grounding hint. Returns a finished ProductItem."""
-        usda_food = await rag_service.lookup(
-            product_name=item.get("product_name", ""),
-            brand=item.get("brand", ""),
-            db=db,
-        )
+        # AsyncSession doesn't support concurrent operations; this method runs
+        # concurrently (one per product) via analyze_shelf_stream's asyncio.as_completed,
+        # all sharing the single request-scoped session, so DB access must be serialized.
+        async with db_lock:
+            usda_food = await rag_service.lookup(
+                product_name=item.get("product_name", ""),
+                brand=item.get("brand", ""),
+                db=db,
+            )
         item["_usda"] = usda_food
 
         variant = item.get("variant") or "Unknown"
