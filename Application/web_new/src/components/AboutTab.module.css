@@ -14,19 +14,23 @@
 }
 
 /* Team grid */
-.team { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.team { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: stretch; }
 .member {
+  display: flex; flex-direction: column; align-items: center;
   background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px 16px; text-align: center;
+  border-radius: var(--radius); padding: 22px 16px; text-align: center;
 }
 .photo {
-  width: 76px; height: 76px; border-radius: 999px; margin: 0 auto 14px;
-  background: var(--surface); border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 24px; color: var(--sub);
+  width: 96px; height: 96px; border-radius: 999px; margin: 0 auto 14px;
+  object-fit: cover; background: var(--surface); border: 1px solid var(--border);
+  display: block;
 }
-.memberName { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.memberRole { font-size: 12.5px; color: var(--sub); }
+.memberName { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.memberRole {
+  font-size: 13px; font-weight: 800; color: var(--accent);
+  letter-spacing: 0.02em; margin-bottom: 8px;
+}
+.memberRoleDesc { font-size: 12.5px; color: var(--sub); line-height: 1.5; }
 
 /* Contact card */
 .contactCard {

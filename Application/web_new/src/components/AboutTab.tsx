@@ -3,12 +3,33 @@ import s from './AboutTab.module.css';
 
 const CONTACT_EMAIL = 'nutritionell@gmail.com';
 
-// Placeholders — swap in real names, roles, and photo URLs when available.
+// Photos live in web_new/public/team/ and are served at /team/<file>. To change a
+// photo, replace the file at that path (keep the same name), or edit `photo` below.
 const TEAM = [
-  { name: 'Team Member 1', role: 'Role / Title' },
-  { name: 'Team Member 2', role: 'Role / Title' },
-  { name: 'Team Member 3', role: 'Role / Title' },
-  { name: 'Team Member 4', role: 'Role / Title' },
+  {
+    name: 'Steve Lanciotti',
+    role: 'The Alchemist',
+    desc: 'Computer vision and vision-language models for accurate product detection, identification, and analysis.',
+    photo: '/team/steve.png',
+  },
+  {
+    name: 'Priyanka Banerjee',
+    role: 'The Vanguard',
+    desc: 'User-facing application for instantaneous nutrition insights, field testing, and milestone delivery.',
+    photo: '/team/priyanka.jpeg',
+  },
+  {
+    name: 'Yu-Sheng Lee',
+    role: 'The Architect',
+    desc: 'Cloud infrastructure, database architecture, and backend pipelines for real-time processing.',
+    photo: '/team/yu-sheng.jpeg',
+  },
+  {
+    name: 'Najmeh Rahimi',
+    role: 'The Oracle',
+    desc: 'Subject-matter expertise, domain logic, and user feedback loops for AI vision reasoning.',
+    photo: '/team/najmeh.jpg',
+  },
 ];
 
 export default function AboutTab() {
@@ -26,9 +47,10 @@ export default function AboutTab() {
       <div className={s.team}>
         {TEAM.map(m => (
           <div key={m.name} className={s.member}>
-            <div className={s.photo} aria-hidden="true">👤</div>
+            <img className={s.photo} src={m.photo} alt={m.name} />
             <p className={s.memberName}>{m.name}</p>
             <p className={s.memberRole}>{m.role}</p>
+            <p className={s.memberRoleDesc}>{m.desc}</p>
           </div>
         ))}
       </div>
