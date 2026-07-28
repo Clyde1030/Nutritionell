@@ -29,6 +29,12 @@ const FEATURES = [
   { icon: '🧬', title: 'Nutrition insights', text: 'Break down ingredients and nutrition so you can compare with confidence.' },
 ];
 
+const PROBLEMS = [
+  'Shoppers decide amid flashy marketing and obscure chemical ingredients.',
+  'Health-conscious consumers are left to research brands and ingredients themselves.',
+  'Current apps create information bottlenecks — slow, item-by-item scanning.',
+];
+
 const VALUE_PROPS = [
   {
     title: 'Built for the real shelf, not the barcode',
@@ -79,6 +85,29 @@ export default function HomeTab({ onNavigate }: Props) {
           actually buying, without becoming a food-label expert first.
         </p>
       </section>
+
+      {/* Problem & Solution */}
+      <h2 className={s.sectionTitle}>The problem — and our solution</h2>
+      <p className={s.sectionSub}>Where grocery shopping stands today, and what Nutritionell does about it.</p>
+      <div className={s.problemSolution}>
+        <div className={`${s.psCard} ${s.psProblem}`}>
+          <p className={s.psLabelProblem}>The Problem Space</p>
+          <ul className={s.psList}>
+            {PROBLEMS.map(p => (
+              <li key={p} className={s.psItem}>{p}</li>
+            ))}
+          </ul>
+        </div>
+        <div className={`${s.psCard} ${s.psSolution}`}>
+          <p className={s.psLabelSolution}>The Solution</p>
+          <p className={s.psBrand}>Nutritionell</p>
+          <p className={s.psText}>
+            From a single grocery-shelf photo, identify each unique product, run nutrition analysis,
+            and get user-specific recommendations — replacing singular product lookup and hours of
+            research.
+          </p>
+        </div>
+      </div>
 
       {/* How it works */}
       <h2 className={s.sectionTitle}>How it works</h2>
