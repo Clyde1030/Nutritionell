@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './page.module.css';
 import HomeTab from '@/components/HomeTab';
 import ProfileTab from '@/components/ProfileTab';
@@ -27,22 +27,70 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('home');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
   // ScanTab / PlanTab stay mounted for within-session persistence, but read
   // localStorage during render — so only mount AFTER hydration to avoid a
   // server/client mismatch. Also apply the persisted color theme on mount.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); initTheme(); }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!headerRef.current) return;
+      const target = event.target as Node | null;
+      if (target && !headerRef.current.contains(target)) {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentClick);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuOpen]);
+
+  const handleTabChange = (nextTab: Tab) => {
+    setTab(nextTab);
+    setMenuOpen(false);
+  };
+
   return (
     <div className={styles.shell}>
       {/* Top nav */}
-      <header className={styles.header}>
-        <button className={styles.logo} onClick={() => setTab('home')} aria-label="Nutritionell home">
+      <header ref={headerRef} className={styles.header}>
+        <button className={styles.logo} onClick={() => handleTabChange('home')} aria-label="Nutritionell home">
           Nutritionell
         </button>
-        <nav className={styles.nav}>
+        <button
+          className={`${styles.menuToggle} ${menuOpen ? styles.menuToggleOpen : ''}`}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          aria-controls="top-nav"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span className={styles.menuBar} />
+          <span className={styles.menuBar} />
+          <span className={styles.menuBar} />
+        </button>
+        <nav id="top-nav" className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`}>
           {TABS.map(t => (
-            <button key={t.key} className={`${styles.navBtn} ${tab === t.key ? styles.navBtnActive : ''}`}
-              onClick={() => setTab(t.key)}>
+            <button
+              key={t.key}
+              className={`${styles.navBtn} ${tab === t.key ? styles.navBtnActive : ''}`}
+              onClick={() => handleTabChange(t.key)}
+            >
               <span className={styles.navIcon}>{t.icon}</span>
               <span>{t.label}</span>
             </button>
@@ -52,7 +100,7 @@ export default function Home() {
 
       {/* Content */}
       <main className={styles.main}>
-        {tab === 'home'         && <HomeTab onNavigate={(t) => setTab(t as Tab)} />}
+        {tab === 'home'         && <HomeTab onNavigate={(t) => handleTabChange(t as Tab)} />}
         {tab === 'profile'      && <ProfileTab />}
         {tab === 'goals'        && <GoalsTab />}
         {/* Scan stays mounted (just hidden) so an in-progress or completed scan

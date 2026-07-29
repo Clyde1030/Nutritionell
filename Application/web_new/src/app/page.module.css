@@ -1,7 +1,7 @@
 .shell { display: flex; flex-direction: column; min-height: 100vh; }
 
 .header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 0 24px; height: 56px;
   background: var(--card); border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 100;
@@ -9,6 +9,30 @@
 
 .logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); transition: color 0.15s; }
 .logo:hover { color: var(--accent); }
+
+.menuToggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--sub);
+}
+
+.menuToggle:hover { color: var(--text); background: var(--card); }
+.menuToggleOpen { color: var(--accent); background: var(--accent-glow); }
+
+.menuBar {
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
 
 .nav { display: flex; gap: 4px; }
 
@@ -26,9 +50,25 @@
 .main { flex: 1; overflow-y: auto; }
 
 /* Responsive */
-@media (max-width: 600px) {
+@media (max-width: 840px) {
   .header { padding: 0 12px; }
   .logo { font-size: 15px; }
-  .navBtn span:last-child { display: none; }
-  .navBtn { padding: 6px 10px; }
+  .menuToggle { display: inline-flex; }
+  .nav {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 12px;
+    left: 12px;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+  }
+  .navOpen { display: flex; }
+  .navBtn { width: 100%; justify-content: flex-start; padding: 10px 12px; }
+  .navBtn span:last-child { display: inline; }
 }
