@@ -139,7 +139,8 @@ variable "container_image_tag" {
 
 variable "desired_count" {
   type    = number
-  default = 1
+  # default = 1
+  default = 5 # scaled out for higher-concurrency scan testing
 }
 
 variable "task_cpu" {

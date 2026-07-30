@@ -4,7 +4,8 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"               # HTTP/HTTPS aware (vs "network" for raw TCP)
   security_groups    = [aws_security_group.alb.id] # firewall defined in network.tf
   subnets            = module.vpc.public_subnets   # lives in public subnets — faces the internet
-  idle_timeout       = 180                          # AWS default (60s) is shorter than the Gemini shelf-analysis pipeline
+  # idle_timeout       = 180                          # AWS default (60s) is shorter than the Gemini shelf-analysis pipeline
+  idle_timeout       = 300                          # bumped 2026-07-30 to match manual ALB change — long scans were exceeding 180s
 }
 
 resource "aws_lb_target_group" "app" {
