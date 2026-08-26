@@ -161,40 +161,13 @@ curl -X POST "$ALB/api/analyze" \
 
 ### Building and deploying a new image
 
-The whole flow below (commit, build, push to ECR, redeploy, smoke test) is wrapped in
-[scripts/deploy_backend.sh](scripts/deploy_backend.sh):
+See [deploy-to-ecr.md](deploy-to-ecr.md) for the full step-by-step runbook
+(prerequisites, checklist, `scripts/deploy_backend.sh` usage, common variations, and
+troubleshooting). Quick version:
 
 ```bash
 bash scripts/deploy_backend.sh "commit message"
 ```
-
-Fargate defaults to the `X86_64` runtime platform. If you're building on Apple
-Silicon, `docker build` produces an `arm64` image by default — pass `--platform
-linux/amd64` explicitly or the task will fail to start after deploy:
-
-```bash
-# From the repo root (build context needs Model/ alongside Application/)
-docker build --platform linux/amd64 -f Application/backend/Dockerfile -t nutritionell-backend .
-
-ECR_URL="$(cd infra/terraform && terraform output -raw ecr_repository_url)"
-aws ecr get-login-password --region us-east-1 | \
-  docker login --username AWS --password-stdin "${ECR_URL%%/*}"
-
-docker tag nutritionell-backend:latest "${ECR_URL}:latest"
-docker push "${ECR_URL}:latest"
-```
-
-Then force a new ECS deployment and wait for it to roll out:
-
-```bash
-aws ecs update-service --cluster nutritionell-cluster --service nutritionell-backend \
-  --force-new-deployment --region us-east-1
-aws ecs wait services-stable --cluster nutritionell-cluster --services nutritionell-backend \
-  --region us-east-1
-```
-
-(Use `terraform apply` instead if the task definition itself changed, e.g. new env
-vars or secrets.) Re-run the smoke-test curls above once the wait returns.
 
 ## Running locally in Docker
 
