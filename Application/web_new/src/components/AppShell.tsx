@@ -73,7 +73,10 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
           aria-label="Nutritionell home"
           aria-current={tab === 'home' ? 'page' : undefined}
         >
-          Nutritionell
+          {/* alt="" on purpose: the button already carries aria-label="Nutritionell
+              home", so a described image would be announced twice. */}
+          <img src="/logo.png" alt="" className={styles.logoMark} width={26} height={26} />
+          <span>Nutritionell</span>
         </button>
 
         <button

@@ -7,7 +7,15 @@
   position: sticky; top: 0; z-index: 100;
 }
 
-.logo { font-family: var(--f-display); font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); transition: color 0.15s; }
+.logo {
+  display: flex; align-items: center; gap: 9px;
+  font-family: var(--f-display); font-size: 18px; font-weight: 800;
+  letter-spacing: -0.5px; color: var(--text); transition: color 0.15s;
+}
+/* Matches the 26px nav icon chip so the header reads as one row of marks. The
+   source art is a square with its own built-in padding, so it is only scaled —
+   never cropped or letterboxed. */
+.logoMark { width: 26px; height: 26px; border-radius: 7px; display: block; flex-shrink: 0; }
 .logo:hover { color: var(--accent); }
 
 .menuToggle {
@@ -60,7 +68,8 @@
 /* Responsive */
 @media (max-width: 840px) {
   .header { padding: 0 12px; }
-  .logo { font-size: 15px; }
+  .logo { font-size: 15px; gap: 7px; }
+  .logoMark { width: 22px; height: 22px; border-radius: 6px; }
   .menuToggle { display: inline-flex; }
   .nav {
     display: none;
