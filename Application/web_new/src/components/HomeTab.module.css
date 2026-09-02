@@ -13,6 +13,7 @@
   padding: 5px 12px; border-radius: 999px; margin-bottom: 20px;
 }
 .title {
+  font-family: var(--f-display);
   font-size: 46px; font-weight: 800; letter-spacing: -1.5px;
   line-height: 1.05; color: var(--text); margin-bottom: 16px;
 }
@@ -23,15 +24,15 @@
 }
 .ctaRow { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .ctaPrimary {
-  background: var(--accent); color: #fff;
-  padding: 12px 24px; border-radius: 10px;
+  background: var(--accent); color: var(--accent-ink);
+  padding: 12px 24px; border-radius: var(--radius-btn);
   font-size: 15px; font-weight: 700; transition: opacity 0.15s;
 }
 .ctaPrimary:hover { opacity: 0.9; }
 .ctaSecondary {
   background: var(--surface); color: var(--text);
   border: 1px solid var(--border);
-  padding: 12px 24px; border-radius: 10px;
+  padding: 12px 24px; border-radius: var(--radius-btn);
   font-size: 15px; font-weight: 700; transition: background 0.15s;
 }
 .ctaSecondary:hover { background: var(--card); }
@@ -39,10 +40,12 @@
 /* Mission */
 .missionCard {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 28px 32px; margin: 8px 0 12px;
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 28px 32px; margin: 8px 0 12px;
   text-align: center;
 }
 .missionLabel {
+  font-family: var(--f-display);
   font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
   color: var(--accent); margin-bottom: 10px;
 }
@@ -54,7 +57,7 @@
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 26px 26px; display: flex; flex-direction: column;
 }
-.psProblem { border-color: rgba(217,79,92,0.35); background: rgba(217,79,92,0.06); }
+.psProblem { border-color: color-mix(in oklab, var(--red) 35%, transparent); background: var(--red-bg); }
 .psSolution { border-color: var(--accent); background: var(--accent-glow); }
 .psLabelProblem {
   font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
@@ -73,14 +76,15 @@
   content: ''; position: absolute; left: 2px; top: 7px;
   width: 7px; height: 7px; border-radius: 999px; background: var(--red);
 }
-.psBrand { font-size: 21px; font-weight: 800; letter-spacing: -0.3px; color: var(--accent); margin-bottom: 8px; }
+.psBrand { font-family: var(--f-display); font-size: 21px; font-weight: 800; letter-spacing: -0.3px; color: var(--accent); margin-bottom: 8px; }
 .psText { font-size: 15px; line-height: 1.6; color: var(--text); }
 
 /* Value proposition */
 .valueList { display: flex; flex-direction: column; gap: 12px; }
 .valueRow {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 18px 20px;
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 18px 20px;
   display: flex; flex-direction: column; gap: 4px;
 }
 .valueTitle { font-size: 15px; font-weight: 700; color: var(--text); }
@@ -88,7 +92,7 @@
 
 /* Disclaimer */
 .disclaimer {
-  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35);
+  background: var(--yellow-bg); border: 1px solid color-mix(in oklab, var(--yellow) 35%, transparent);
   border-radius: var(--radius); padding: 22px 26px; margin-top: 56px;
 }
 .disclaimerTitle { font-size: 14px; font-weight: 800; color: var(--yellow); margin-bottom: 8px; }
@@ -97,6 +101,7 @@
 
 /* Section heading */
 .sectionTitle {
+  font-family: var(--f-display);
   font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
   color: var(--text); text-align: center; margin: 56px 0 8px;
 }
@@ -108,7 +113,7 @@
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .step {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 24px 20px;
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px 20px;
 }
 .stepNum {
   display: flex; align-items: center; justify-content: center;
@@ -123,7 +128,7 @@
 .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .feature {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 22px 20px;
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 20px;
 }
 .featureIcon { font-size: 22px; margin-bottom: 12px; }
 .featureTitle { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }

@@ -11,7 +11,9 @@ import PlanTab from '@/components/PlanTab';
 import GreenwashingTab from '@/components/GreenwashingTab';
 import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
 import AboutTab from '@/components/AboutTab';
-import AppearanceTab from '@/components/AppearanceTab';
+import SettingsTab from '@/components/SettingsTab';
+import { NAV_ICONS } from '@/components/icons/NavIcons';
+import { initTheme } from '@/lib/theme';
 
 export default function AppShell({ initialTab }: { initialTab: Tab }) {
   const router = useRouter();
@@ -22,6 +24,9 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab]);
+
+  // Apply the persisted color theme on mount.
+  useEffect(() => { initTheme(); }, []);
 
   const handleTabChange = (nextTab: Tab) => {
     if (nextTab === tab) {
@@ -84,17 +89,22 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
         </button>
 
         <nav id="top-nav" className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`}>
-          {TABS.map((t) => (
+          {TABS.map((t) => {
+            const TabIcon = NAV_ICONS[t.icon];
+            return (
             <button
               key={t.key}
               className={`${styles.navBtn} ${tab === t.key ? styles.navBtnActive : ''}`}
               aria-current={tab === t.key ? 'page' : undefined}
               onClick={() => handleTabChange(t.key)}
             >
-              <span className={styles.navIcon}>{t.icon}</span>
+              <span className={styles.navIcon}>
+                <TabIcon className={styles.navIconSvg} />
+              </span>
               <span>{t.label}</span>
             </button>
-          ))}
+            );
+          })}
         </nav>
       </header>
 
@@ -123,8 +133,8 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
         <section className={styles.tabPanel} hidden={tab !== 'about'} aria-hidden={tab !== 'about'}>
           <AboutTab />
         </section>
-        <section className={styles.tabPanel} hidden={tab !== 'appearance'} aria-hidden={tab !== 'appearance'}>
-          <AppearanceTab />
+        <section className={styles.tabPanel} hidden={tab !== 'settings'} aria-hidden={tab !== 'settings'}>
+          <SettingsTab />
         </section>
       </main>
     </div>

@@ -1,26 +1,33 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Default theme = "Light Mode" (mirrors PALETTES[0] in lib/theme.ts), so a
+  /* Default theme = "Avocado" (mirrors PALETTES[0] in lib/theme.ts), so a
      first-time visitor sees it with no flash before JS runs. The Settings tab's
-     Appearance picker overrides these at runtime and persists the choice.
-     (To make the classic purple light theme the default instead, copy the
-     "Light Mode Classic" values here and set DEFAULT_THEME in lib/theme.ts.) */
-  --bg: #e8f6f4;
-  --card: #ffffff;
-  --surface: #f1faf8;
-  --border: #cfe8e2;
-  --text: #17356f;
-  --sub: #516585;
-  --accent: #20d6a4;
-  --accent-glow: rgba(32,214,164,0.2);
-  --green: #1ebc90;
-  --red: #d94f5c;
-  --yellow: #efbf4c;
-  --radius: 12px;
+     Appearance picker overrides these at runtime and persists the choice. */
+  --bg: oklch(98% 0.006 80);
+  --card: oklch(100% 0 0);
+  --surface: oklch(96% 0.01 80);
+  --border: oklch(92% 0.008 80);
+  --text: oklch(24% 0.02 80);
+  --sub: oklch(48% 0.015 80);
+  --accent: oklch(42% 0.15 155);
+  --accent-ink: #ffffff;
+  --accent-glow: oklch(42% 0.15 155 / 0.1);
+  --green: oklch(56% 0.15 150);
+  --green-bg: oklch(93% 0.045 150);
+  --red: oklch(55% 0.18 25);
+  --red-bg: oklch(55% 0.18 25 / 0.06);
+  --yellow: oklch(55% 0.14 85);
+  --yellow-bg: oklch(55% 0.14 85 / 0.07);
+  --radius: 20px;
+  --radius-btn: 999px;
+  --radius-nav: 999px;
+  --shadow: 0 10px 26px oklch(40% 0.03 80 / 0.08);
+  --f-display: 'Fredoka', sans-serif;
+  --f-body: 'Karla', sans-serif;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--f-body); -webkit-font-smoothing: antialiased; }
 
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
 input, textarea { font-family: inherit; }
