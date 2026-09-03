@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ENDPOINTS } from '@/lib/api';
-import { getProfileId, setProfileId as persistProfileId } from '@/lib/storage';
+import { ApiError, ENDPOINTS, authJson } from '@/lib/api';
 import type { PhilosophyOption, ProfileOptions, UserProfile } from '@/lib/types';
 import s from './ProfileTab.module.css';
 
@@ -16,7 +15,6 @@ const NUTRITION_PHIL_KEYS = ['Chris Masterjohn'];
 export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const [options, setOptions] = useState<ProfileOptions | null>(null);
   const [connectionError, setConnectionError] = useState(false);
-  const [profileId, setLocalProfileId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [sex, setSex] = useState('');
@@ -43,19 +41,19 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
   const [buildModal, setBuildModal] = useState(false);
 
   useEffect(() => {
-    setLocalProfileId(getProfileId());
+    // /options is public reference data — no token needed.
     fetch(ENDPOINTS.profileOptions)
       .then(r => r.json())
       .then(setOptions)
       .catch(() => setConnectionError(true));
   }, []);
 
+  // The profile is resolved from the auth token; there is no id to pass.
   useEffect(() => {
-    if (!profileId || !options) return;
+    if (!options) return;
     const knownAllergy = new Set(options.allergies_and_conditions.map(a => a.key));
     const knownIngredient = new Set(options.ingredient_categories.map(c => c.category));
-    fetch(ENDPOINTS.getProfile(profileId))
-      .then(r => r.json())
+    authJson<UserProfile>(ENDPOINTS.profile)
       .then((p: UserProfile) => {
         setName(p.name ?? '');
         setSex(p.sex ?? '');
@@ -78,7 +76,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         } catch {}
       })
       .catch(() => {});
-  }, [profileId, options]);
+  }, [options]);
 
   const toggle = (arr: string[], setArr: (v: string[]) => void, key: string) =>
     setArr(arr.includes(key) ? arr.filter(x => x !== key) : [...arr, key]);
@@ -107,25 +105,21 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
     };
     setSaving(true);
     try {
-      const url = profileId ? ENDPOINTS.updateProfile(profileId) : ENDPOINTS.createProfile;
-      const r = await fetch(url, {
-        method: profileId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // Always a PUT: signup created the one profile this account gets, so
+      // there is no "create" path any more (and the backend has no route for one).
+      await authJson<UserProfile>(ENDPOINTS.profile, {
+        method: 'PUT',
         body: JSON.stringify(body),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail ?? `Server error ${r.status}`);
-      }
-      const savedProfile: UserProfile = await r.json();
-      persistProfileId(savedProfile.id);
-      setLocalProfileId(savedProfile.id);
       setSaved(true);
       setSaveNotice('Profile saved! Now head over to the Goals tab to set your goals.');
       setTimeout(() => setSaved(false), 2000);
       onSaved?.();
     } catch (e: any) {
-      alert(`Save failed: ${e.message}`);
+      // A 401 already cleared the session and reopened the login modal.
+      if (!(e instanceof ApiError && e.status === 401)) {
+        alert(`Save failed: ${e.message}`);
+      }
     } finally {
       setSaving(false);
     }
@@ -380,7 +374,7 @@ export default function ProfileTab({ onSaved }: { onSaved?: () => void }) {
         </section>
 
         <button className={`${s.saveBtn} ${saved ? s.saveBtnSaved : ''}`} onClick={handleSave} disabled={saving}>
-          {saved ? '✓ Saved' : saving ? 'Saving…' : profileId ? 'Update Profile' : 'Save Profile'}
+          {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Profile'}
         </button>
         {saveNotice && <div className={s.saveNotice}>{saveNotice}</div>}
       </div>

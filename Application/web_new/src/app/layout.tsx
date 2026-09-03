@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AuthProvider } from '@/lib/AuthContext';
 
 export const metadata: Metadata = {
   title: 'Nutritionell',
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap&family=Karla:wght@400;500;600;700&display=swap&family=Space+Grotesk:wght@500;600;700&display=swap&family=Work+Sans:wght@400;500;600;700;800&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

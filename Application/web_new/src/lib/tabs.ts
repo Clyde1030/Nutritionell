@@ -14,6 +14,10 @@ export const TABS: { key: Tab; label: string; icon: NavIconKey; path: string }[]
   { key: 'settings',     label: 'Settings',     icon: 'settings',     path: '/settings' },
 ];
 
+/** Tabs anyone can see without an account. Everything else needs a session —
+ *  AppShell gates on this list, so adding a public tab is a one-line change. */
+export const PUBLIC_TABS: Tab[] = ['home', 'about'];
+
 const TAB_BY_PATH: Record<string, Tab> = TABS.reduce((acc, tab) => {
   acc[tab.path] = tab.key;
   return acc;

@@ -1,17 +1,8 @@
-const STORAGE_KEY = 'nutritionell_profile_id';
-
-export function getProfileId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(STORAGE_KEY);
-}
-
-export function setProfileId(id: string): void {
-  window.localStorage.setItem(STORAGE_KEY, id);
-}
-
-export function clearProfileId(): void {
-  window.localStorage.removeItem(STORAGE_KEY);
-}
+// Profile identity used to live here as an anonymous `nutritionell_profile_id`
+// UUID. It is gone: the backend derives the profile from the bearer token, so a
+// client-supplied id is neither needed nor accepted. The session token lives in
+// lib/auth.ts. What remains below is app preferences, which are genuinely
+// client-side.
 
 // ── Scan settings ─────────────────────────────────────────────────────────────
 // Max products the scan will identify + score per photo. Fewer = faster scans;

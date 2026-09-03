@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ENDPOINTS } from '@/lib/api';
-import { getProfileId } from '@/lib/storage';
+import { ApiError, ENDPOINTS, authJson } from '@/lib/api';
 import type { NutritionPlanResponse, NutritionPlanStep } from '@/lib/types';
 import MyPlanTransparency from './MyPlanTransparency';
 import s from './PlanTab.module.css';
@@ -15,19 +14,14 @@ export default function PlanTab() {
   const [showTransparency, setShowTransparency] = useState(false);
 
   const generate = async () => {
-    const profileId = getProfileId();
-    if (!profileId) { alert('Please complete your Profile first.'); return; }
     setLoading(true);
     try {
-      const r = await fetch(ENDPOINTS.nutritionPlan, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile_id: profileId }),
-      });
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
-      setPlan(await r.json());
+      // No body: the backend builds the plan from the caller's own profile.
+      setPlan(await authJson<NutritionPlanResponse>(ENDPOINTS.nutritionPlan, { method: 'POST' }));
     } catch (e: any) {
-      alert(`Generation failed: ${e.message}`);
+      if (!(e instanceof ApiError && e.status === 401)) {
+        alert(`Generation failed: ${e.message}`);
+      }
     } finally {
       setLoading(false);
     }

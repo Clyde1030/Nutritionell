@@ -122,28 +122,58 @@ cd Application/backend && pytest tests/ -v
 
 ### Manual smoke test (full golden path, in a browser)
 
-With both servers running from steps 3–4:
+With both servers running from steps 3–4. **Every feature now requires an
+account** — only Home and Contact Us work signed out.
 
-1. **Profile tab** — confirm the philosophy/allergy/ingredient lists actually
-   load (they come live from `/api/profile/options`, not hardcoded data), fill
-   in a profile, save. Button should read "Update Profile" on subsequent
-   saves, confirming the profile id round-tripped and persisted
-   (`localStorage` key `nutritionell_profile_id`).
-2. **Goals tab** — add a goal, save, reload the page, confirm it's still
-   there (proves it's reading/writing the backend, not just local state).
-3. **Scan tab** — upload a grocery shelf photo (or use
+1. **Signed out** — open `/` in a fresh session (or clear the
+   `nutritionell_auth_token` localStorage key). Home and Contact Us render
+   normally; every other nav item is dimmed and clicking it opens the login
+   modal *instead of navigating*, leaving you on Home. Same for a direct deep
+   link like `/scan` — it deliberately does not redirect to `/`, so you land on
+   the tab you asked for once you sign in.
+2. **Create an account** — use the hero CTA ("Create your free account") or the
+   header "Log In" → "Create an account". On success the modal closes, the
+   header shows your email, and you land on whatever tab you were headed to.
+
+   > **Approval gate:** a brand-new account is *pending* until an admin approves
+   > it. You'll see "Your account is pending approval" on the gated tabs rather
+   > than the real content — that's correct, not a bug. Approve yourself with the
+   > admin API (see *Admin approval (temporary)* in the backend README), then
+   > reload: everything unlocks on the existing session, no need to sign in again.
+3. **Profile tab** — confirm the philosophy/allergy/ingredient lists load live
+   from `/api/profile/options`, fill in a profile, save. There is no profile id
+   anywhere client-side any more: the backend resolves the profile from your
+   bearer token, so `/api/profile/me` is the only route involved.
+4. **Goals tab** — add a goal, save, **reload the page**, confirm it's still
+   there. This is the important one: it proves the session was restored from
+   `localStorage` via `GET /api/auth/me` *and* that the data round-tripped
+   through the backend under your account, not local state.
+5. **Scan tab** — upload a grocery shelf photo (or use
    `Application/backend/app/assets/sample_shelf.jpg`). This calls the real
    YOLO + Gemini pipeline and needs `GEMINI_API_KEY` set in
    `Application/backend/.env`. For fast iteration without spending Gemini
    tokens, flip `USE_MOCK_ANALYZE` to `true` in `src/lib/api.ts` to hit
-   `/api/analyze/mock` instead (4 canned products).
-4. **Plan tab** — generate a plan; should return real, profile-specific
-   content (also needs `GEMINI_API_KEY`).
+   `/api/analyze/mock` instead (4 canned products) — note the mock route
+   requires auth too, so it exercises the same contract as the real one.
+6. **Plan tab** — generate a plan; should return real, profile-specific
+   content (also needs `GEMINI_API_KEY`). The request has no body — the plan is
+   built from whoever holds the token.
+7. **Log out** — account menu (your email, top right) → "Log out". Gated tabs
+   are blocked again, Home and Contact Us still work, and the stored token is
+   gone.
+
+**Password reset** needs the *deployed* backend: SES only sends from there, and
+sending is additionally blocked until the SES sandbox exit in
+`infra/AWS_SETUP_LOGIN_FEATURE.md` is approved. Locally you can still exercise
+the last half of the flow by hitting `POST /api/auth/forgot-password`, reading
+the token out of the backend's logs, and opening
+`http://localhost:3000/?reset_token=<token>` — the modal opens straight into the
+"choose a new password" step and strips the token from the URL afterwards.
 
 Open the browser's network tab during all of the above — every request should
-hit `localhost:8000`, not this app's own `/api/*` routes (except
-Greenwashing/Recommender/Ingredient Analytics, which are expected to stay
-local/mocked for now).
+hit `localhost:8000` with an `Authorization: Bearer …` header, not this app's own
+`/api/*` routes (except Greenwashing/Recommender/Ingredient Analytics, which are
+expected to stay local/mocked for now).
 
 ## Shutting down / cleanup
 

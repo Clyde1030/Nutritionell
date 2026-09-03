@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ENDPOINTS, USE_MOCK_ANALYZE } from '@/lib/api';
-import { getProfileId, getMaxDetections, getYoloModel } from '@/lib/storage';
+import { ApiError, ENDPOINTS, USE_MOCK_ANALYZE, authFetch, readDetail } from '@/lib/api';
+import { getMaxDetections, getYoloModel } from '@/lib/storage';
 import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
 import CameraCapture from './CameraCapture';
@@ -192,12 +192,6 @@ export default function ScanTab() {
   };
 
   const analyze = async (file: File) => {
-    const profileId = getProfileId();
-    if (!profileId) {
-      alert('Set up your profile first for personalised scoring.');
-      return;
-    }
-
     setView('analyzing');
     setResult(null);
     setSelected(null);
@@ -209,7 +203,9 @@ export default function ScanTab() {
     const makeForm = () => {
       const fd = new FormData();
       fd.append('image', file);
-      fd.append('profile_id', profileId);
+      // No profile_id: the backend scores against the profile that owns the
+      // bearer token. Sending one would be ignored, and accepting one is exactly
+      // the hole this contract change closed.
       // User-selected cap (Settings tab) on how many products to identify + score.
       fd.append('max_detections', String(getMaxDetections()));
       // User-selected detection model (Settings tab): yolo11n / yolo26s / yolo26s_p2.
@@ -221,8 +217,8 @@ export default function ScanTab() {
     const runPlain = async () => {
       setProg(p => ({ ...p, stage: 'identifying', stageStart: Date.now() }));
       const endpoint = USE_MOCK_ANALYZE ? ENDPOINTS.analyzeMock : ENDPOINTS.analyze;
-      const r = await fetch(endpoint, { method: 'POST', body: makeForm() });
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail ?? `Server ${r.status}`); }
+      const r = await authFetch(endpoint, { method: 'POST', body: makeForm() });
+      if (!r.ok) throw new Error(await readDetail(r));
       const data: ShelfAnalysisResponse = await r.json();
       setResult(data);
       setView('results');
@@ -234,7 +230,7 @@ export default function ScanTab() {
       // Stream per-stage progress; fall back to plain if the endpoint is unavailable.
       let streamed = false;
       try {
-        const r = await fetch(ENDPOINTS.analyzeStream, { method: 'POST', body: makeForm() });
+        const r = await authFetch(ENDPOINTS.analyzeStream, { method: 'POST', body: makeForm() });
         if (!r.ok || !r.body) throw new Error('stream-unavailable');
         streamed = true;
 
@@ -255,9 +251,26 @@ export default function ScanTab() {
         }
       } catch (streamErr: any) {
         if (streamed) throw streamErr;   // real in-stream error — surface it
+        // An auth failure isn't "streaming unavailable" — retrying plain would
+        // just fail the same way. Let it out to the handler below.
+        if (streamErr instanceof ApiError && (streamErr.status === 401 || streamErr.status === 403)) {
+          throw streamErr;
+        }
         await runPlain();                // streaming unavailable — fall back
       }
     } catch (e: any) {
+      // 401 already cleared the session and reopened the login modal; 403
+      // pending_approval means the account is awaiting admin approval. Neither
+      // is a scan failure, so don't dress them up as one.
+      if (e instanceof ApiError && e.status === 401) {
+        setView('picker');
+        return;
+      }
+      if (e instanceof ApiError && e.status === 403 && e.detail === 'pending_approval') {
+        setErrorMsg('Your account is still pending approval, so scanning is not available yet.');
+        setView('picker');
+        return;
+      }
       const msg = e?.message ?? 'Unknown error';
       if (/\b429\b|\b503\b|quota|resource[_ ]?exhausted|temporarily unavailable|rate limit/i.test(msg)) {
         setErrorMsg('The AI service is busy or has hit its usage limit right now — this is usually a temporary API rate or credit limit, not your photo. Wait a moment and try again.');
@@ -557,9 +570,6 @@ export default function ScanTab() {
           ))}
         </div>
 
-        {!getProfileId() && (
-          <div className={s.warning}>⚠️ Set up your profile first for personalised scoring</div>
-        )}
       </div>
 
       {showCamera && (

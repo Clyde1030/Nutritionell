@@ -3,6 +3,9 @@ import s from './HomeTab.module.css';
 
 interface Props {
   onNavigate: (tab: string) => void;
+  /** Opens the auth modal on Create Account. The hero CTA can't navigate to a
+   *  gated tab any more — every feature below needs an account. */
+  onGetStarted: () => void;
 }
 
 const STEPS = [
@@ -24,9 +27,12 @@ const STEPS = [
 ];
 
 const FEATURES = [
-  { icon: '⊕', title: 'Shelf scanning', text: 'AI detects every product in one photo and scores it against your profile.' },
-  { icon: '🔍', title: 'Greenwashing check', text: 'Cut through marketing claims to see what a product really is.' },
-  { icon: '🧬', title: 'Nutrition insights', text: 'Break down ingredients and nutrition so you can compare with confidence.' },
+  { icon: '👤', title: 'Your dietary profile', text: 'Allergies, conditions, dietary philosophy, avoided ingredients, and how processed a food you will accept — every score is judged against this.' },
+  { icon: '🎯', title: 'Goals in your own words', text: 'Write what you are actually trying to do — more protein, less sugar, lower sodium — and scoring takes it into account.' },
+  { icon: '⊕', title: 'Shelf scanning', text: 'AI detects every product in one photo and scores it against your profile — a whole shelf at once, not one barcode at a time.' },
+  { icon: '📋', title: 'Your nutrition plan', text: 'A personalised plan built from your profile and goals: daily targets, weekly focus areas, foods to emphasise and limit.' },
+  { icon: '🌿', title: 'Greenwashing check', text: 'Photograph a single label and see how far the marketing claims sit from what the product actually is.' },
+  { icon: '🧬', title: 'Nutrition insights', text: 'Break down ingredients and nutrition, with the evidence behind each concern, so you can compare with confidence.' },
 ];
 
 const PROBLEMS = [
@@ -54,7 +60,7 @@ const VALUE_PROPS = [
   },
 ];
 
-export default function HomeTab({ onNavigate }: Props) {
+export default function HomeTab({ onNavigate, onGetStarted }: Props) {
   return (
     <div className={s.wrap}>
       {/* Hero */}
@@ -69,8 +75,11 @@ export default function HomeTab({ onNavigate }: Props) {
           your dietary profile.
         </p>
         <div className={s.ctaRow}>
-          <button className={s.ctaPrimary} onClick={() => onNavigate('profile')}>Set up your profile</button>
-          <button className={s.ctaSecondary} onClick={() => onNavigate('scan')}>Scan a shelf</button>
+          {/* Both CTAs used to navigate straight into gated tabs. They now open
+              the account flow, since nothing past Home and Contact Us works
+              without one. */}
+          <button className={s.ctaPrimary} onClick={onGetStarted}>Create your free account</button>
+          <button className={s.ctaSecondary} onClick={() => onNavigate('about')}>Get in touch</button>
         </div>
       </section>
 
