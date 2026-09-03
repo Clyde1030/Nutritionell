@@ -93,3 +93,19 @@ resource "aws_secretsmanager_secret_version" "gemini_api_key" {
   secret_id     = aws_secretsmanager_secret.gemini_api_key.id
   secret_string = var.gemini_api_key
 }
+
+# ---------- JWT signing secret (login feature) ----------
+resource "random_password" "jwt_secret" {
+  length  = 64
+  special = true
+}
+
+resource "aws_secretsmanager_secret" "jwt_secret_key" {
+  name                    = "${var.name_prefix}/jwt-secret-key"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "jwt_secret_key" {
+  secret_id     = aws_secretsmanager_secret.jwt_secret_key.id
+  secret_string = random_password.jwt_secret.result
+}

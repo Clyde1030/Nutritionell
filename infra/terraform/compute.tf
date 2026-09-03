@@ -101,6 +101,7 @@ resource "aws_iam_role_policy" "execution_secrets" {
       Resource = [
         aws_secretsmanager_secret.database_url.arn,
         aws_secretsmanager_secret.gemini_api_key.arn,
+        aws_secretsmanager_secret.jwt_secret_key.arn,
       ]
     }]
   })
@@ -132,6 +133,19 @@ resource "aws_iam_role_policy" "task_s3" {
   })
 }
 
+resource "aws_iam_role_policy" "task_ses" {
+  name = "ses-send-email"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.name_prefix}-backend"
   requires_compatibilities = ["FARGATE"] # serverless containers, no EC2 to manage
@@ -157,6 +171,7 @@ resource "aws_ecs_task_definition" "app" {
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
       { name = "GEMINI_API_KEY", valueFrom = aws_secretsmanager_secret.gemini_api_key.arn },
+      { name = "JWT_SECRET_KEY", valueFrom = aws_secretsmanager_secret.jwt_secret_key.arn },
     ]
 
     logConfiguration = {
