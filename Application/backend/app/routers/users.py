@@ -1,9 +1,12 @@
 """
-CRUD endpoints for user profiles + nutrition plan generation.
+Profile endpoints + nutrition plan generation.
+
+Every route here resolves the profile from the authenticated user. There is no
+profile id in any URL or body: a client cannot name a profile, so it cannot read
+or mutate someone else's. `/options` is static reference data and stays open.
 """
 import json
 import logging
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from google.genai import errors as genai_errors
@@ -11,13 +14,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.user import UserProfile
+from app.models.user import User, UserProfile
+from app.services.auth_service import get_current_approved_user
 from app.schemas.user import (
-    NutritionPlanRequest,
     NutritionPlanResponse,
     NutritionPlanStep,
     ProfileOptionsResponse,
-    UserProfileCreate,
     UserProfileResponse,
     UserProfileUpdate,
     DIETARY_PHILOSOPHIES,
@@ -32,43 +34,39 @@ async def get_profile_options():
     return ProfileOptionsResponse()
 
 
-@router.post("", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED)
-async def create_profile(body: UserProfileCreate, db: AsyncSession = Depends(get_db)):
-    profile = UserProfile(
-        name=body.name,
-        sex=body.sex,
-        age_group=body.age_group,
-        allergies_and_conditions=body.allergies_and_conditions,
-        free_text_goals=body.free_text_goals,
-        dietary_philosophy=body.dietary_philosophy,
-        philosophy_customizations=body.philosophy_customizations,
-        custom_philosophy_text=body.custom_philosophy_text,
-        avoided_ingredients=body.avoided_ingredients,
-        processed_food_tolerance=body.processed_food_tolerance,
-    )
-    db.add(profile)
-    await db.commit()
-    await db.refresh(profile)
-    return profile
+async def _own_profile(db: AsyncSession, current_user: User) -> UserProfile:
+    """The caller's profile, or 404.
 
-
-@router.get("/{profile_id}", response_model=UserProfileResponse)
-async def get_profile(profile_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(UserProfile).where(UserProfile.id == str(profile_id)))
+    Signup creates a profile for every account, so a missing one means the row
+    was deleted out from under the account rather than a normal state.
+    """
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 
 
-@router.put("/{profile_id}", response_model=UserProfileResponse)
-async def update_profile(
-    profile_id: UUID, body: UserProfileUpdate, db: AsyncSession = Depends(get_db)
+# NOTE: there is no POST /api/profile any more. Signup creates the one profile an
+# account gets, and the 1:1 rule means a second one must never be creatable — so
+# the route is gone rather than kept as an authenticated no-op that could drift.
+
+
+@router.get("/me", response_model=UserProfileResponse)
+async def get_my_profile(
+    current_user: User = Depends(get_current_approved_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(UserProfile).where(UserProfile.id == str(profile_id)))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+    return await _own_profile(db, current_user)
+
+
+@router.put("/me", response_model=UserProfileResponse)
+async def update_my_profile(
+    body: UserProfileUpdate,
+    current_user: User = Depends(get_current_approved_user),
+    db: AsyncSession = Depends(get_db),
+):
+    profile = await _own_profile(db, current_user)
 
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
@@ -80,18 +78,14 @@ async def update_profile(
 
 @router.post("/nutrition-plan", response_model=NutritionPlanResponse)
 async def generate_nutrition_plan(
-    body: NutritionPlanRequest, db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_approved_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Generate a personalised nutrition plan via Gemini based on the user's full profile."""
-    try:
-        uid = str(UUID(body.profile_id))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid profile_id")
+    """Generate a personalised nutrition plan via Gemini from the caller's profile.
 
-    result = await db.execute(select(UserProfile).where(UserProfile.id == uid))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+    Takes no body: the profile is whoever is holding the token.
+    """
+    profile = await _own_profile(db, current_user)
 
     from app.services.gemini_service import GeminiService
     svc = GeminiService()

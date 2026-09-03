@@ -12,11 +12,13 @@ that a full single-product Gemini analysis can exceed.
 import logging
 
 import pillow_heif
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from google.genai import errors as genai_errors
 from PIL import Image, ImageOps
 import io
 
+from app.models.user import User
+from app.services.auth_service import get_current_approved_user
 from app.services.gemini_service import GeminiService
 
 pillow_heif.register_heif_opener()
@@ -35,7 +37,12 @@ def _is_heic(content_type: str, filename: str) -> bool:
 
 
 @router.post("/analyze")
-async def analyze_greenwashing(image: UploadFile = File(..., description="Photo of a single product's label")):
+async def analyze_greenwashing(
+    image: UploadFile = File(..., description="Photo of a single product's label"),
+    current_user: User = Depends(get_current_approved_user),
+):
+    # Touches no user-owned data, so there is nothing to own-check — the gate is
+    # just the product rule that key features require an account.
     content_type = (image.content_type or "").lower()
     filename = image.filename or ""
     is_heic = _is_heic(content_type, filename)

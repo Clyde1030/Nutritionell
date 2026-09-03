@@ -1,6 +1,10 @@
 """
 Tests for the /api/analyze endpoint.
 Gemini is mocked so these run without an API key or network access.
+
+/api/analyze requires a bearer token and scores against the CALLER'S profile —
+there is no profile_id form field any more, so these tests authenticate rather
+than naming a profile.
 """
 import io
 import json
@@ -114,21 +118,31 @@ def _make_mock_client(vision_text: str, scoring_text: str):
     return mock_client
 
 
-async def _create_profile(client) -> str:
-    r = await client.post("/api/profile", json={
+async def _account_with_profile(client, db_engine) -> dict:
+    """Register an APPROVED account and fill in its (auto-created) profile.
+
+    Signup leaves accounts pending under the temporary approval gate; these tests
+    are about analysis, so clear the gate first (it has its own tests).
+    """
+    from tests.conftest import approve, signup
+
+    data = await signup(client)
+    await approve(db_engine, data["user"]["id"])
+    headers = {"Authorization": f"Bearer {data['access_token']}"}
+    await client.put("/api/profile/me", headers=headers, json={
         "name": "Tester",
         "dietary_philosophy": "Keto",
         "allergies_and_conditions": [],
         "free_text_goals": "Less sugar",
     })
-    return r.json()["id"]
+    return {"headers": headers, "profile_id": data["profile_id"]}
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_analyze_returns_products(client):
-    profile_id = await _create_profile(client)
+async def test_analyze_returns_products(client, db_engine):
+    account = await _account_with_profile(client, db_engine)
     mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
 
     with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
@@ -146,8 +160,8 @@ async def test_analyze_returns_products(client):
         )
         r = await client.post(
             "/api/analyze",
+            headers=account["headers"],
             files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-            data={"profile_id": profile_id},
         )
 
     assert r.status_code == 200
@@ -157,42 +171,91 @@ async def test_analyze_returns_products(client):
 
 
 @pytest.mark.asyncio
-async def test_analyze_missing_profile(client):
+async def test_analyze_without_token_is_401(client):
+    """The core of the lockdown: no token, no analysis."""
     tiny_jpeg = b'\xff\xd8\xff\xd9'  # minimal JPEG
     r = await client.post(
         "/api/analyze",
         files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-        data={"profile_id": "00000000-0000-0000-0000-000000000000"},
     )
-    assert r.status_code == 404
+    assert r.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_analyze_invalid_profile_id(client):
+async def test_analyze_stream_without_token_is_401(client):
+    tiny_jpeg = b'\xff\xd8\xff\xd9'
+    r = await client.post(
+        "/api/analyze/stream",
+        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
+    )
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_analyze_with_invalid_token_is_401(client):
     tiny_jpeg = b'\xff\xd8\xff\xd9'
     r = await client.post(
         "/api/analyze",
+        headers={"Authorization": "Bearer not.a.jwt"},
         files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-        data={"profile_id": "not-a-uuid"},
     )
-    assert r.status_code == 400
+    assert r.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_analyze_unsupported_image_type(client):
-    profile_id = await _create_profile(client)
+async def test_analyze_ignores_a_supplied_profile_id(client, db_engine):
+    """Passing profile_id must not select a profile — the field is gone, and a
+    stray one from an old client is inert rather than honoured."""
+    from tests.conftest import signup
+
+    victim = await signup(client, "victim@example.com")
+    attacker = await _account_with_profile(client, db_engine)
+
+    mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
+    with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
+         patch("app.services.gemini_service.yolo_service.detect", return_value=[]):
+        r = await client.post(
+            "/api/analyze",
+            headers=attacker["headers"],
+            files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
+            data={"profile_id": victim["profile_id"]},
+        )
+    # Succeeds using the ATTACKER's own profile; the extra field changes nothing.
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_mock_analyze_matches_the_real_contract(client, account):
+    """USE_MOCK_ANALYZE must not be a way to bypass auth locally."""
+    tiny_jpeg = b'\xff\xd8\xff\xd9'
+    unauth = await client.post(
+        "/api/analyze/mock", files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")}
+    )
+    assert unauth.status_code == 401
+
+    authed = await client.post(
+        "/api/analyze/mock",
+        headers=account["headers"],
+        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
+    )
+    assert authed.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_analyze_unsupported_image_type(client, db_engine):
+    account = await _account_with_profile(client, db_engine)
     r = await client.post(
         "/api/analyze",
+        headers=account["headers"],
         files={"image": ("doc.pdf", b"%PDF", "application/pdf")},
-        data={"profile_id": profile_id},
     )
     assert r.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_analyze_schema_output_structure(client):
+async def test_analyze_schema_output_structure(client, db_engine):
     """Validate that scoring values are one of the four allowed enums."""
-    profile_id = await _create_profile(client)
+    account = await _account_with_profile(client, db_engine)
     mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
 
     with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
@@ -209,8 +272,8 @@ async def test_analyze_schema_output_structure(client):
         )
         r = await client.post(
             "/api/analyze",
+            headers=account["headers"],
             files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-            data={"profile_id": profile_id},
         )
 
     assert r.status_code == 200
@@ -223,9 +286,9 @@ async def test_analyze_schema_output_structure(client):
 
 
 @pytest.mark.asyncio
-async def test_analyze_uses_yolo_bounding_boxes(client):
+async def test_analyze_uses_yolo_bounding_boxes(client, db_engine):
     """When YOLO finds products, its pixel boxes -- not Gemini's -- drive bounding_box."""
-    profile_id = await _create_profile(client)
+    account = await _account_with_profile(client, db_engine)
     mock_client = _make_mock_client(MOCK_CROP_IDENTIFICATION_RESPONSE, MOCK_SCORING_RESPONSE_2)
 
     yolo_boxes = [
@@ -237,8 +300,8 @@ async def test_analyze_uses_yolo_bounding_boxes(client):
          patch("app.services.gemini_service.yolo_service.detect", return_value=yolo_boxes):
         r = await client.post(
             "/api/analyze",
+            headers=account["headers"],
             files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
-            data={"profile_id": profile_id},
         )
 
     assert r.status_code == 200

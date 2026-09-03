@@ -5,12 +5,14 @@ Routes:
   POST /api/analyze          multipart/form-data → full JSON result
   POST /api/analyze/stream   multipart/form-data → text/event-stream progress
     - image      : UploadFile  (JPEG / PNG / WebP / iPhone HEIC)
-    - profile_id : str (UUID of the user's saved profile)
+
+Both routes require `Authorization: Bearer <token>` and score against the
+caller's own profile. `profile_id` is deliberately NOT a form field any more —
+accepting one would let any client analyse against any profile.
 """
 import io
 import json
 import logging
-from uuid import UUID
 
 import pillow_heif
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -21,8 +23,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.user import UserProfile
+from app.models.user import User, UserProfile
 from app.schemas.ai_output import ShelfAnalysisResponse
+from app.services.auth_service import get_current_approved_user
 from app.services.gemini_service import GeminiService
 
 # Register HEIF/HEIC support so Pillow can open iPhone photos.
@@ -41,8 +44,9 @@ def _is_heic(content_type: str, filename: str) -> bool:
     return content_type in _HEIC_TYPES or filename.lower().endswith((".heic", ".heif"))
 
 
-async def _prepare_request(image: UploadFile, profile_id: str, db: AsyncSession):
-    """Validate + load the profile and return (image_bytes, mime_type, profile).
+async def _prepare_request(image: UploadFile, current_user: User, db: AsyncSession):
+    """Validate the upload, load the CALLER'S profile, and return
+    (image_bytes, mime_type, profile).
 
     Shared by the plain and streaming endpoints. Converts iPhone HEIC → JPEG.
     """
@@ -55,12 +59,7 @@ async def _prepare_request(image: UploadFile, profile_id: str, db: AsyncSession)
             detail=f"Unsupported image type '{image.content_type}'. Use JPEG, PNG, WebP, or an iPhone (HEIC) photo.",
         )
 
-    try:
-        uid = str(UUID(profile_id))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid profile_id UUID format")
-
-    result = await db.execute(select(UserProfile).where(UserProfile.id == uid))
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="User profile not found")
@@ -102,16 +101,16 @@ def _gemini_error_detail(exc: genai_errors.APIError) -> tuple[int, str]:
 @router.post("/analyze", response_model=ShelfAnalysisResponse)
 async def analyze_shelf(
     image: UploadFile = File(..., description="Photo of a grocery shelf"),
-    profile_id: str = Form(..., description="UUID of the user profile to use for scoring"),
     max_detections: int | None = Form(
         None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
     ),
     yolo_model: str | None = Form(
         None, description="Detection model to run (user-set in Settings): yolo11n / yolo26s / yolo26s_p2"
     ),
+    current_user: User = Depends(get_current_approved_user),
     db: AsyncSession = Depends(get_db),
 ):
-    image_bytes, mime_type, profile = await _prepare_request(image, profile_id, db)
+    image_bytes, mime_type, profile = await _prepare_request(image, current_user, db)
     try:
         return await gemini_service.analyze_shelf(
             image_bytes=image_bytes, mime_type=mime_type, profile=profile, db=db,
@@ -126,13 +125,13 @@ async def analyze_shelf(
 @router.post("/analyze/stream")
 async def analyze_shelf_stream(
     image: UploadFile = File(..., description="Photo of a grocery shelf"),
-    profile_id: str = Form(..., description="UUID of the user profile to use for scoring"),
     max_detections: int | None = Form(
         None, description="Max products to identify per scan (user-set in Settings; clamped 1-100)"
     ),
     yolo_model: str | None = Form(
         None, description="Detection model to run (user-set in Settings): yolo11n / yolo26s / yolo26s_p2"
     ),
+    current_user: User = Depends(get_current_approved_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Server-Sent-Events stream of analysis progress.
@@ -141,7 +140,7 @@ async def analyze_shelf_stream(
     analyzed_item, complete, or error. The client can fall back to /api/analyze if
     streaming is unsupported.
     """
-    image_bytes, mime_type, profile = await _prepare_request(image, profile_id, db)
+    image_bytes, mime_type, profile = await _prepare_request(image, current_user, db)
 
     async def event_stream():
         try:

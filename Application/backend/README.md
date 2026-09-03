@@ -180,3 +180,102 @@ docker run --rm -p 8000:8000 --env-file Application/backend/.env nutritionell-ba
 Note `.env`'s `DATABASE_URL` will need to point somewhere reachable from inside the
 container (e.g. `host.docker.internal` instead of `localhost` for a docker-compose
 Postgres on the host).
+
+## Admin approval (temporary)
+
+> **This section — and the feature it documents — is meant to come back out.**
+> While the app is being rebuilt, signup stays open but a new account can't reach
+> any real feature until it's approved by hand. When open signup is ready,
+> deleting `app/routers/admin.py`, `get_current_approved_user` /
+> `get_current_admin_user` in `app/services/auth_service.py`, and the
+> `users.is_approved` / `users.is_admin` columns removes the whole gate.
+
+A brand-new account can log in and call `GET /api/auth/me`, and nothing else —
+every feature endpoint answers `403 {"detail": "pending_approval"}` until you
+approve it. You get an email at `nutritionell@gmail.com` when someone signs up.
+
+Set the API host once (`http://localhost:8000` for a local run):
+
+```bash
+API=https://api.nutritionell.com
+```
+
+### 1. Get an admin token
+
+Log in as your admin account — same login endpoint as any user:
+
+```bash
+TOKEN=$(curl -sS -X POST "$API/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@yourmail.com","password":"<your password>"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+
+echo "$TOKEN"
+```
+
+If you don't have an admin account yet, see *Bootstrapping the first admin* in
+`infra/AWS_SETUP_LOGIN_FEATURE.md` — there is deliberately no endpoint that can
+create one.
+
+### 2. See who's waiting
+
+```bash
+curl -sS "$API/api/admin/users/pending" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+```json
+[
+  {
+    "id": "3f1c8e2a-...",
+    "email": "someone@example.com",
+    "is_approved": false,
+    "is_admin": false,
+    "created_at": "2026-09-02T14:03:11+00:00"
+  }
+]
+```
+
+Oldest first. For everyone, approved or not:
+
+```bash
+curl -sS "$API/api/admin/users" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+### 3. Approve
+
+Copy the `id` from the pending list:
+
+```bash
+USER_ID=3f1c8e2a-...
+
+curl -sS -X POST "$API/api/admin/users/$USER_ID/approve" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+The user gets access immediately, on their existing token — approval is read from
+the database per request, so they don't need to log in again.
+
+### 4. Revoke
+
+Undoes an approval:
+
+```bash
+curl -sS -X POST "$API/api/admin/users/$USER_ID/revoke" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+Note revoking an **admin** doesn't remove their access — `is_admin` grants access
+on its own. The response says so. To fully lock out an admin, clear `is_admin` in
+the database directly (same tunnel process as the bootstrap step).
+
+### Notes
+
+- Every `/api/admin/*` route requires an admin token. A normal approved user gets
+  `403`, same as a pending one.
+- `POST /api/auth/login` still succeeds for an unapproved account and returns a
+  token — login isn't what's gated, feature access is. `GET /api/auth/me` also
+  keeps working while pending, and reports `is_approved` / `is_admin` so a client
+  can show the right state.
+- Approve is idempotent; re-approving an already-approved user is a no-op `200`.

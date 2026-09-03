@@ -1,11 +1,19 @@
 """
 Mock analyze endpoint — returns 5 hardcoded products with full reasoning_by_factor.
 POST /api/analyze/mock
+
+Mirrors /api/analyze's contract deliberately: auth required, no client-supplied
+profile_id. The frontend's USE_MOCK_ANALYZE flag points local testing here, so if
+this drifted from the real route, flipping that flag would quietly exercise a
+different auth behaviour than production.
 """
 import io
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from PIL import Image
+
+from app.models.user import User
+from app.services.auth_service import get_current_approved_user
 from app.schemas.ai_output import (
     Detection, NutritionalFacts, PerformanceSummary, ProductItem,
     ScoreBreakdown, ScoreEnum, ShelfAnalysisResponse,
@@ -188,7 +196,7 @@ MOCK_RESULT = ShelfAnalysisResponse(
 @router.post("/mock", response_model=ShelfAnalysisResponse)
 async def mock_analyze(
     image: UploadFile = File(...),
-    profile_id: str = Form(...),
+    current_user: User = Depends(get_current_approved_user),
 ):
     await image.read()
     return MOCK_RESULT

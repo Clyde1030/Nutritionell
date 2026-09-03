@@ -9,6 +9,19 @@ pgvector==0.2.5
 pydantic==2.9.2
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
+# EmailStr in app/schemas/auth.py needs this; pydantic does not bundle it.
+email-validator==2.2.0
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+# passlib 1.7.4 calls bcrypt.__about__.__version__, which bcrypt 4.1+ removed —
+# it only logs a warning, but pin bcrypt<4.1 to keep the startup log clean.
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pyjwt==2.9.0
+
+# SES client for password-reset email. Also present in the ECS runtime, but pin
+# it here so local runs and tests resolve the same version.
+boto3==1.35.36
 
 # 1.75.0 is the last 1.x; needed for thinking_config/thinking_budget (disabled on the
 # identification + enrichment passes for a large latency win). 1.3.0 predates it.

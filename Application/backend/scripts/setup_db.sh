@@ -25,6 +25,12 @@ python scripts/create_tables.py
 echo "==> Running column migrations..."
 python scripts/migrate_add_columns.py
 
+echo "==> Running auth migration (users, password_reset_tokens, user_profiles.user_id)..."
+python scripts/migrate_add_user_auth.py
+
+echo "==> Running admin-approval migration (users.is_approved, users.is_admin)..."
+python scripts/migrate_add_admin_approval.py
+
 echo "==> Seeding USDA data..."
 python scripts/seed_usda.py
 
