@@ -5,8 +5,8 @@
 }
 
 .header { text-align: center; margin-bottom: 36px; }
-.title { font-family: var(--f-display); font-size: 34px; font-weight: 800; letter-spacing: -1px; color: var(--text); margin-bottom: 10px; }
-.subtitle { font-size: 16px; color: var(--sub); line-height: 1.55; max-width: 560px; margin: 0 auto; }
+.title { font-family: var(--f-display); font-size: 2.125rem; font-weight: 800; letter-spacing: -1px; color: var(--text); margin-bottom: 10px; }
+.subtitle { font-size: 1rem; color: var(--sub); line-height: 1.55; max-width: 560px; margin: 0 auto; }
 
 .card {
   background: var(--card); border: 1px solid var(--border);
@@ -16,20 +16,20 @@
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 10px;
 }
-.cardTitle { font-family: var(--f-display); font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: var(--text); }
+.cardTitle { font-family: var(--f-display); font-size: 1.125rem; font-weight: 800; letter-spacing: -0.3px; color: var(--text); }
 .valuePill {
   min-width: 46px; text-align: center;
-  font-size: 18px; font-weight: 800; color: var(--accent);
+  font-size: 1.125rem; font-weight: 800; color: var(--accent);
   background: var(--accent-glow);
   border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px;
 }
-.cardText { font-size: 14px; color: var(--sub); line-height: 1.6; margin-bottom: 18px; }
+.cardText { font-size: 0.875rem; color: var(--sub); line-height: 1.6; margin-bottom: 18px; }
 .cardText strong { color: var(--text); font-weight: 700; }
 
 .pillRow { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill {
   min-width: 52px;
-  font-size: 14px; font-weight: 700; color: var(--sub);
+  font-size: 0.875rem; font-weight: 700; color: var(--sub);
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 999px; padding: 9px 14px; cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -41,10 +41,10 @@
 
 .scaleRow {
   display: flex; justify-content: space-between;
-  font-size: 12px; color: var(--sub); margin-top: 12px;
+  font-size: 0.75rem; color: var(--sub); margin-top: 12px;
 }
 
-.appliesNote { font-size: 13px; color: var(--sub); margin-top: 18px; min-height: 18px; }
+.appliesNote { font-size: 0.8125rem; color: var(--sub); margin-top: 18px; min-height: 18px; }
 .appliesNote strong { color: var(--text); font-weight: 700; }
 .savedFlash { color: var(--green); font-weight: 700; }
 
@@ -63,13 +63,13 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), var(--accent-glow) 0 0 0 3px;
 }
-.modelName { font-size: 15px; font-weight: 800; color: var(--text); }
-.modelDesc { font-size: 12.5px; color: var(--sub); line-height: 1.4; }
+.modelName { font-size: 0.9375rem; font-weight: 800; color: var(--text); }
+.modelDesc { font-size: 0.78125rem; color: var(--sub); line-height: 1.4; }
 
 /* Appearance — theme picker */
 .card + .card { margin-top: 20px; }
 .groupLabel {
-  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
   color: var(--sub); margin: 16px 0 10px;
 }
 .themeGrid {
@@ -92,7 +92,7 @@
   width: 16px; height: 16px; border-radius: 4px; border: 1px solid;
 }
 .themeDot { width: 12px; height: 12px; border-radius: 999px; }
-.themeName { font-size: 12.5px; font-weight: 700; color: var(--text); text-align: center; }
+.themeName { font-size: 0.78125rem; font-weight: 700; color: var(--text); text-align: center; }
 
 @media (max-width: 560px) {
   .themeGrid { grid-template-columns: repeat(2, 1fr); }
@@ -100,5 +100,5 @@
 
 @media (max-width: 700px) {
   .wrap { padding: 24px 16px 48px; }
-  .title { font-size: 26px; }
+  .title { font-size: 1.625rem; }
 }

@@ -27,6 +27,21 @@
   --f-body: 'Karla', sans-serif;
 }
 
+/* Karla (light themes) and Work Sans (dark) have a taller x-height than the
+   -apple-system stack they replaced, so everything read oversized at the same
+   declared px sizes.
+   
+   This is the single lever for text size app-wide: every component's font-size
+   is declared in rem against a 16px reference (the values are the original px
+   divided by 16, so 16px here would render pixel-identical to before). Dropping
+   the root to 15px scales all text to 93.75%. Layout — padding, widths, gaps —
+   is deliberately still px, so only type shrinks, not the whole UI.
+   
+   NOTE: the px -> rem conversion was necessary for this to do anything at all.
+   With the previous all-px font sizes, changing the root font-size had literally
+   no effect. */
+html { font-size: 15px; }
+
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--f-body); -webkit-font-smoothing: antialiased; }
 
 button { cursor: pointer; border: none; background: none; font-family: inherit; }

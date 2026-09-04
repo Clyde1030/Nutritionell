@@ -9,7 +9,7 @@
 
 .logo {
   display: flex; align-items: center; gap: 9px;
-  font-family: var(--f-display); font-size: 18px; font-weight: 800;
+  font-family: var(--f-display); font-size: 1.125rem; font-weight: 800;
   letter-spacing: -0.5px; color: var(--text); transition: color 0.15s;
 }
 /* Matches the 26px nav icon chip so the header reads as one row of marks. The
@@ -42,13 +42,29 @@
   background: currentColor;
 }
 
-.nav { display: flex; gap: 4px; }
+/* Overflow safety net: with 9 tabs plus the logo and the account control, the row
+   is width-critical. Rather than letting it spill past the toolbar (which it did),
+   it scrolls inside the header as an absolute last resort — the breakpoints below
+   should mean that never actually happens. */
+.nav {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* old Edge */
+}
+.nav::-webkit-scrollbar { display: none; }
 
 .navBtn {
   display: flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: var(--radius-nav);
-  font-size: 13px; font-weight: 600; color: var(--sub);
+  padding: 6px 10px; border-radius: var(--radius-nav);
+  font-size: 0.8125rem; font-weight: 600; color: var(--sub);
   transition: all 0.15s;
+  /* Never squash a label into unreadability — scroll instead. */
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .navBtn:hover { color: var(--text); background: var(--surface); }
 .navBtnActive { color: var(--accent); background: var(--accent-glow); font-weight: 700; }
@@ -66,9 +82,26 @@
 .main { flex: 1; overflow-y: auto; }
 
 /* Responsive */
+
+/* Between the hamburger breakpoint and full desktop there used to be nothing —
+   which is why the nav overflowed at ordinary laptop widths. Here the labels drop
+   and the icon chips carry the nav; 9 chips fit comfortably where 9 labelled
+   buttons do not.
+   
+   1260px is measured, not guessed: at 1280px the labelled row (logo 119 + nav 876
+   + account 167 + padding) needs ~1234px, and a real browser at 1210px was still
+   showing labels while hiding 30px of nav. Anything below ~1240 has to drop the
+   labels, so the switch sits just above that with a little headroom. */
+@media (max-width: 1260px) {
+  .navBtn { padding: 6px; gap: 0; }
+  .navBtn > span:last-child { display: none; }
+  .accountEmail { display: none; }
+  .accountBtn { padding: 4px; }
+}
+
 @media (max-width: 840px) {
   .header { padding: 0 12px; }
-  .logo { font-size: 15px; gap: 7px; }
+  .logo { font-size: 0.9375rem; gap: 7px; }
   .logoMark { width: 22px; height: 22px; border-radius: 6px; }
   .menuToggle { display: inline-flex; }
   .nav {
@@ -84,10 +117,15 @@
     border-radius: 14px;
     background: var(--card);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+    overflow-x: visible;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
   }
   .navOpen { display: flex; }
   .navBtn { width: 100%; justify-content: flex-start; padding: 10px 12px; }
-  .navBtn span:last-child { display: inline; }
+  /* The dropdown is a vertical list, so labels come back even though the
+     1180px rule above hid them. */
+  .navBtn > span:last-child { display: inline; }
 }
 
 /* ── Account control (header) ─────────────────────────────────────────────── */
@@ -101,7 +139,7 @@
 .loginBtn {
   background: var(--accent); color: var(--accent-ink);
   border: none; border-radius: var(--radius-btn);
-  padding: 7px 16px; font-size: 13px; font-weight: 700;
+  padding: 7px 16px; font-size: 0.8125rem; font-weight: 700;
   cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
 }
 .loginBtn:hover { opacity: 0.9; }
@@ -110,7 +148,7 @@
   display: flex; align-items: center; gap: 8px;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-btn); padding: 4px 12px 4px 4px;
-  font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: var(--text); cursor: pointer;
   max-width: 210px;
 }
 .accountBtn:hover { border-color: var(--accent); }
@@ -118,7 +156,7 @@
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: 9px; flex-shrink: 0;
   background: var(--accent); color: var(--accent-ink);
-  font-size: 12px; font-weight: 800;
+  font-size: 0.75rem; font-weight: 800;
 }
 .accountEmail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -129,18 +167,18 @@
   border-radius: 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
 }
 .accountMenuEmail {
-  font-size: 12px; color: var(--sub); padding: 8px 10px 6px;
+  font-size: 0.75rem; color: var(--sub); padding: 8px 10px 6px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .accountMenuBadge {
-  font-size: 11px; font-weight: 700; color: var(--yellow);
+  font-size: 0.6875rem; font-weight: 700; color: var(--yellow);
   background: var(--yellow-bg); border-radius: 6px;
   padding: 4px 8px; margin: 0 4px 6px;
 }
 .accountMenuItem {
   display: block; width: 100%; text-align: left;
   background: none; border: none; border-radius: 8px;
-  padding: 9px 10px; font: inherit; font-size: 13px; font-weight: 600;
+  padding: 9px 10px; font: inherit; font-size: 0.8125rem; font-weight: 600;
   color: var(--text); cursor: pointer;
 }
 .accountMenuItem:hover { background: var(--surface); color: var(--accent); }
@@ -156,16 +194,16 @@
 }
 .gateNotice h2 {
   font-family: var(--f-display);
-  font-size: 26px; font-weight: 800; letter-spacing: -0.6px;
+  font-size: 1.625rem; font-weight: 800; letter-spacing: -0.6px;
   color: var(--text); margin-bottom: 12px;
 }
-.gateNotice p { font-size: 15px; line-height: 1.6; color: var(--sub); margin-bottom: 10px; }
-.gateSub { font-size: 13.5px !important; }
+.gateNotice p { font-size: 0.9375rem; line-height: 1.6; color: var(--sub); margin-bottom: 10px; }
+.gateSub { font-size: 0.84375rem !important; }
 .gateBtn {
   margin-top: 14px;
   background: var(--accent); color: var(--accent-ink);
   border: none; border-radius: var(--radius-btn);
-  padding: 12px 24px; font-size: 15px; font-weight: 700; cursor: pointer;
+  padding: 12px 24px; font-size: 0.9375rem; font-weight: 700; cursor: pointer;
 }
 .gateBtn:hover { opacity: 0.9; }
 

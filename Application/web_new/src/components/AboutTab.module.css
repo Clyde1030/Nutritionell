@@ -5,11 +5,11 @@
 }
 
 .header { text-align: center; margin-bottom: 40px; }
-.title { font-size: 34px; font-weight: 800; letter-spacing: -1px; color: var(--text); margin-bottom: 10px; }
-.subtitle { font-size: 16px; color: var(--sub); line-height: 1.55; max-width: 620px; margin: 0 auto; }
+.title { font-size: 2.125rem; font-weight: 800; letter-spacing: -1px; color: var(--text); margin-bottom: 10px; }
+.subtitle { font-size: 1rem; color: var(--sub); line-height: 1.55; max-width: 620px; margin: 0 auto; }
 
 .sectionTitle {
-  font-size: 20px; font-weight: 800; letter-spacing: -0.3px;
+  font-size: 1.25rem; font-weight: 800; letter-spacing: -0.3px;
   color: var(--text); text-align: center; margin: 48px 0 24px;
 }
 
@@ -25,22 +25,22 @@
   object-fit: cover; background: var(--surface); border: 1px solid var(--border);
   display: block;
 }
-.memberName { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.memberName { font-size: 1rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
 .memberRole {
-  font-size: 13px; font-weight: 800; color: var(--accent);
+  font-size: 0.8125rem; font-weight: 800; color: var(--accent);
   letter-spacing: 0.02em; margin-bottom: 8px;
 }
-.memberRoleDesc { font-size: 12.5px; color: var(--sub); line-height: 1.5; }
+.memberRoleDesc { font-size: 0.78125rem; color: var(--sub); line-height: 1.5; }
 
 /* Contact card */
 .contactCard {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 28px; text-align: center; margin-top: 16px;
 }
-.contactTitle { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-.contactText { font-size: 14px; color: var(--sub); line-height: 1.55; margin-bottom: 18px; }
+.contactTitle { font-size: 1.0625rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.contactText { font-size: 0.875rem; color: var(--sub); line-height: 1.55; margin-bottom: 18px; }
 .contactEmail {
-  display: inline-block; font-size: 15px; font-weight: 700; color: var(--accent);
+  display: inline-block; font-size: 0.9375rem; font-weight: 700; color: var(--accent);
   background: var(--accent-glow); padding: 10px 20px; border-radius: 999px;
 }
 .contactEmail:hover { opacity: 0.85; }
@@ -48,6 +48,6 @@
 /* Responsive */
 @media (max-width: 700px) {
   .wrap { padding: 24px 16px 48px; }
-  .title { font-size: 26px; }
+  .title { font-size: 1.625rem; }
   .team { grid-template-columns: repeat(2, 1fr); }
 }

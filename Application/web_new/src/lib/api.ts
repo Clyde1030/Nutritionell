@@ -19,7 +19,19 @@ export const ENDPOINTS = {
   me: `${API_BASE_URL}/api/auth/me`,
   forgotPassword: `${API_BASE_URL}/api/auth/forgot-password`,
   resetPassword: `${API_BASE_URL}/api/auth/reset-password`,
+
+  // ── Admin (temporary approval gate) ────────────────────────────────────────
+  adminPendingUsers: `${API_BASE_URL}/api/admin/users/pending`,
+  adminUsers: `${API_BASE_URL}/api/admin/users`,
 } as const;
+
+/** Per-user admin actions. A function rather than a constant because these are
+ *  the only endpoints with a path parameter. */
+export type AdminUserActionName = 'approve' | 'revoke' | 'make-admin' | 'remove-admin';
+
+export function adminUserAction(userId: string, action: AdminUserActionName): string {
+  return `${API_BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/${action}`;
+}
 
 /** Flip to true to hit /api/analyze/mock instead of the real Gemini+YOLO pipeline. */
 export const USE_MOCK_ANALYZE = false;

@@ -194,6 +194,11 @@ A brand-new account can log in and call `GET /api/auth/me`, and nothing else —
 every feature endpoint answers `403 {"detail": "pending_approval"}` until you
 approve it. You get an email at `nutritionell@gmail.com` when someone signs up.
 
+> There is now also a **UI** for all of this: sign in as an admin in the web app
+> and pick **Admin** from the account menu (top right). It shows the same two
+> lists and the same four actions as the curl below. The curl stays documented
+> because it's useful for scripting and for when the frontend isn't deployed.
+
 Set the API host once (`http://localhost:8000` for a local run):
 
 ```bash
@@ -267,8 +272,46 @@ curl -sS -X POST "$API/api/admin/users/$USER_ID/revoke" \
 ```
 
 Note revoking an **admin** doesn't remove their access — `is_admin` grants access
-on its own. The response says so. To fully lock out an admin, clear `is_admin` in
-the database directly (same tunnel process as the bootstrap step).
+on its own. The response says so. Use `remove-admin` (below) as well to fully
+lock one out.
+
+### 5. Grant / remove admin rights
+
+Promoting someone no longer needs a database connection:
+
+```bash
+curl -sS -X POST "$API/api/admin/users/$USER_ID/make-admin" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+```json
+{
+  "user": { "id": "…", "email": "someone@example.com", "is_approved": false, "is_admin": true },
+  "message": "someone@example.com is now an admin."
+}
+```
+
+`make-admin` does **not** set `is_approved` — it doesn't need to, because an admin
+is always treated as approved.
+
+```bash
+curl -sS -X POST "$API/api/admin/users/$USER_ID/remove-admin" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+Two things to know about `remove-admin`:
+
+- It leaves `is_approved` alone (mirroring `revoke`, which leaves `is_admin`
+  alone). So removing admin from someone who was never separately approved drops
+  them to **no access at all** — the response message says so when that happens.
+- **You can't remove your own admin rights**, and it returns `400` if you try.
+  That's the difference between undoing a mis-promotion and the only admin
+  account locking itself out. Another admin can remove yours; failing that, it's
+  a database edit.
+
+The first admin still has to be made by hand — nothing reachable over the network
+can grant itself admin. See *Bootstrapping the first admin* in
+`infra/AWS_SETUP_LOGIN_FEATURE.md`.
 
 ### Notes
 

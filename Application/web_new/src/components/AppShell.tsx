@@ -15,6 +15,7 @@ import GreenwashingTab from '@/components/GreenwashingTab';
 import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
 import AboutTab from '@/components/AboutTab';
 import SettingsTab from '@/components/SettingsTab';
+import AdminTab from '@/components/AdminTab';
 import { NAV_ICONS } from '@/components/icons/NavIcons';
 import { initTheme } from '@/lib/theme';
 
@@ -36,6 +37,9 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
   const [resetToken, setResetToken] = useState<string | null>(null);
 
   const isPublic = useCallback((t: Tab) => PUBLIC_TABS.includes(t), []);
+  // Being signed in isn't enough for /admin — an authenticated non-admin must not
+  // see the panel, so this is checked separately from canView().
+  const isAdminUser = user?.is_admin === true;
   // 'loading' is not "allowed": rendering a gated tab before the stored token is
   // verified would flash protected UI at someone who may not be signed in.
   const canView = useCallback(
@@ -178,6 +182,14 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
     return <SignedOutNotice onSignIn={() => openAuth('signin', t)} />;
   };
 
+  /** /admin needs auth AND is_admin. A signed-in non-admin gets a plain notice
+   *  rather than a login box — signing in again wouldn't change anything. */
+  const adminPanel = () => {
+    if (!canView('admin')) return gated('admin', <AdminTab />);
+    if (!isAdminUser) return <NotAuthorizedNotice />;
+    return <AdminTab />;
+  };
+
   return (
     <div className={styles.shell}>
       <header ref={headerRef} className={styles.header}>
@@ -256,6 +268,17 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
                   {status === 'pending' && (
                     <div className={styles.accountMenuBadge}>Pending approval</div>
                   )}
+                  {/* Admins only. Deliberately here rather than in the top nav —
+                      see the note in lib/tabs.ts. */}
+                  {isAdminUser && (
+                    <button
+                      className={styles.accountMenuItem}
+                      onClick={() => handleTabChange('admin')}
+                      role="menuitem"
+                    >
+                      Admin
+                    </button>
+                  )}
                   <button className={styles.accountMenuItem} onClick={handleLogout} role="menuitem">
                     Log out
                   </button>
@@ -297,6 +320,9 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
         <section className={styles.tabPanel} hidden={tab !== 'settings'} aria-hidden={tab !== 'settings'}>
           {gated('settings', <SettingsTab />)}
         </section>
+        <section className={styles.tabPanel} hidden={tab !== 'admin'} aria-hidden={tab !== 'admin'}>
+          {tab === 'admin' && adminPanel()}
+        </section>
       </main>
 
       <AuthModal
@@ -310,6 +336,15 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
         }}
         onAuthenticated={handleAuthenticated}
       />
+    </div>
+  );
+}
+
+function NotAuthorizedNotice() {
+  return (
+    <div className={styles.gateNotice}>
+      <h2>Not authorized</h2>
+      <p>This screen is for administrators. If you think that&rsquo;s wrong, ask an admin to check your account.</p>
     </div>
   );
 }

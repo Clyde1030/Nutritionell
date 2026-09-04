@@ -269,3 +269,160 @@ async def test_signup_succeeds_even_if_the_notification_fails(client, monkeypatc
     )
     assert r.status_code == 201
     assert r.json()["access_token"]
+
+
+# ── Grant / revoke admin ─────────────────────────────────────────────────────
+
+ADMIN_GRANT_ACTIONS = ["make-admin", "remove-admin"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ADMIN_GRANT_ACTIONS)
+async def test_grant_routes_reject_anonymous(client, pending_account, action):
+    r = await client.post(f"/api/admin/users/{pending_account['user_id']}/{action}")
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ADMIN_GRANT_ACTIONS)
+async def test_grant_routes_reject_non_admin(client, approved_account, pending_account, action):
+    """An approved user is still not an admin — promotion can't be self-serve."""
+    r = await client.post(
+        f"/api/admin/users/{pending_account['user_id']}/{action}",
+        headers=approved_account["headers"],
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ADMIN_GRANT_ACTIONS)
+async def test_grant_routes_404_on_unknown_user(client, admin_account, action):
+    r = await client.post(
+        f"/api/admin/users/00000000-0000-0000-0000-000000000000/{action}",
+        headers=admin_account["headers"],
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_make_admin_grants_admin_and_access(client, admin_account, pending_account):
+    """End to end: blocked, promoted, unblocked — without ever being approved,
+    since is_admin implies access."""
+    before = await client.get("/api/profile/me", headers=pending_account["headers"])
+    assert before.status_code == 403
+
+    r = await client.post(
+        f"/api/admin/users/{pending_account['user_id']}/make-admin",
+        headers=admin_account["headers"],
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["is_admin"] is True
+    # make-admin deliberately leaves is_approved alone.
+    assert r.json()["user"]["is_approved"] is False
+    assert "is now an admin" in r.json()["message"]
+
+    after = await client.get("/api/profile/me", headers=pending_account["headers"])
+    assert after.status_code == 200
+
+    # ...and they can now use the admin routes themselves.
+    assert (
+        await client.get("/api/admin/users", headers=pending_account["headers"])
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_make_admin_is_idempotent(client, admin_account, pending_account):
+    path = f"/api/admin/users/{pending_account['user_id']}/make-admin"
+    first = await client.post(path, headers=admin_account["headers"])
+    second = await client.post(path, headers=admin_account["headers"])
+    assert first.status_code == second.status_code == 200
+    assert second.json()["user"]["is_admin"] is True
+    assert "already an admin" in second.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_remove_admin_revokes_and_warns_about_lost_access(
+    client, admin_account, pending_account
+):
+    """Removing admin from someone never separately approved drops them to no
+    access at all — the message has to say so."""
+    await client.post(
+        f"/api/admin/users/{pending_account['user_id']}/make-admin",
+        headers=admin_account["headers"],
+    )
+    assert (
+        await client.get("/api/profile/me", headers=pending_account["headers"])
+    ).status_code == 200
+
+    r = await client.post(
+        f"/api/admin/users/{pending_account['user_id']}/remove-admin",
+        headers=admin_account["headers"],
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["is_admin"] is False
+    assert "lost access" in r.json()["message"]
+
+    after = await client.get("/api/profile/me", headers=pending_account["headers"])
+    assert after.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_remove_admin_from_an_approved_user_keeps_their_access(
+    client, admin_account, approved_account
+):
+    await client.post(
+        f"/api/admin/users/{approved_account['user_id']}/make-admin",
+        headers=admin_account["headers"],
+    )
+    r = await client.post(
+        f"/api/admin/users/{approved_account['user_id']}/remove-admin",
+        headers=admin_account["headers"],
+    )
+    assert r.status_code == 200
+    assert "lost access" not in r.json()["message"]
+    assert (
+        await client.get("/api/profile/me", headers=approved_account["headers"])
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_remove_admin_is_idempotent(client, admin_account, approved_account):
+    path = f"/api/admin/users/{approved_account['user_id']}/remove-admin"
+    first = await client.post(path, headers=admin_account["headers"])
+    second = await client.post(path, headers=admin_account["headers"])
+    assert first.status_code == second.status_code == 200
+    assert "was not an admin" in second.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_cannot_remove_your_own_admin_rights(client, admin_account):
+    """The guard that separates 'undo a mis-promotion' from 'the only admin
+    locks itself out'."""
+    r = await client.post(
+        f"/api/admin/users/{admin_account['user_id']}/remove-admin",
+        headers=admin_account["headers"],
+    )
+    assert r.status_code == 400
+    assert "your own admin rights" in r.json()["detail"]
+
+    # Still an admin, still has access.
+    me = await client.get("/api/auth/me", headers=admin_account["headers"])
+    assert me.json()["user"]["is_admin"] is True
+    assert (
+        await client.get("/api/admin/users", headers=admin_account["headers"])
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_another_admin_can_remove_your_rights(client, admin_account, approved_account):
+    """The guard is about SELF-removal only — a second admin can still do it."""
+    await client.post(
+        f"/api/admin/users/{approved_account['user_id']}/make-admin",
+        headers=admin_account["headers"],
+    )
+    r = await client.post(
+        f"/api/admin/users/{admin_account['user_id']}/remove-admin",
+        headers=approved_account["headers"],
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["is_admin"] is False

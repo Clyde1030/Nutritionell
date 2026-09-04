@@ -1,0 +1,110 @@
+/* Follows SettingsTab.module.css closely — page title, then card sections. */
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+.header { text-align: center; margin-bottom: 32px; }
+.title {
+  font-family: var(--f-display);
+  font-size: 2.125rem; font-weight: 800; letter-spacing: -1px;
+  color: var(--text); margin-bottom: 10px;
+}
+.subtitle {
+  font-size: 0.9375rem; color: var(--sub); line-height: 1.55;
+  max-width: 600px; margin: 0 auto;
+}
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 26px;
+}
+.card + .card { margin-top: 20px; }
+
+.cardHead {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 10px;
+}
+.cardTitle {
+  font-family: var(--f-display);
+  font-size: 1.125rem; font-weight: 800; letter-spacing: -0.3px; color: var(--text);
+}
+.valuePill {
+  min-width: 36px; text-align: center;
+  font-size: 1rem; font-weight: 800; color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px;
+}
+.cardText { font-size: 0.875rem; color: var(--sub); line-height: 1.6; margin-bottom: 18px; }
+
+.empty { font-size: 0.875rem; color: var(--sub); font-style: italic; padding: 6px 0; }
+
+/* ── Rows ─────────────────────────────────────────────────────────────────── */
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.rowMain { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.email {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.90625rem; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.you {
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--accent); background: var(--accent-glow);
+  border-radius: 999px; padding: 2px 7px;
+}
+.meta { font-size: 0.78125rem; color: var(--sub); }
+
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badgeOn, .badgeOff, .badgeAdmin {
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 9px;
+}
+.badgeOn { color: var(--green); background: var(--green-bg); }
+.badgeOff { color: var(--sub); background: var(--card); border: 1px solid var(--border); }
+.badgeAdmin { color: var(--accent); background: var(--accent-glow); }
+
+.rowActions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.primaryBtn, .secondaryBtn, .dangerBtn {
+  font: inherit; font-size: 0.8125rem; font-weight: 700;
+  border-radius: var(--radius-btn); padding: 8px 14px;
+  cursor: pointer; white-space: nowrap; transition: opacity 0.15s, border-color 0.15s;
+}
+.primaryBtn { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); }
+.secondaryBtn { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.secondaryBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.dangerBtn { background: var(--red-bg); color: var(--red); border: 1px solid var(--red); }
+.primaryBtn:hover:not(:disabled), .dangerBtn:hover:not(:disabled) { opacity: 0.88; }
+.primaryBtn:disabled, .secondaryBtn:disabled, .dangerBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Banners (same shape as ScanTab/GreenwashingTab) ──────────────────────── */
+.errorBanner, .noticeBanner {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 18px;
+  font-size: 0.84375rem; line-height: 1.5;
+}
+.errorBanner {
+  background: var(--red-bg); color: var(--red);
+  border: 1px solid color-mix(in oklab, var(--red) 35%, transparent);
+}
+.noticeBanner {
+  background: var(--green-bg); color: var(--green);
+  border: 1px solid color-mix(in oklab, var(--green) 35%, transparent);
+}
+.errorDismiss {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.125rem; line-height: 1; color: inherit; opacity: 0.7; flex-shrink: 0;
+}
+.errorDismiss:hover { opacity: 1; }
+
+@media (max-width: 700px) {
+  .wrap { padding: 24px 16px 48px; }
+  .title { font-size: 1.625rem; }
+  .row { flex-direction: column; align-items: stretch; }
+  .rowActions { justify-content: flex-end; }
+}

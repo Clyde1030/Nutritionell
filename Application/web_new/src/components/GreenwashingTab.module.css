@@ -1,8 +1,8 @@
 .page { padding: 32px 24px; max-width: 900px; margin: 0 auto; }
 .header { margin-bottom: 28px; }
-.title { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
-.sub { color: var(--sub); font-size: 14px; line-height: 1.5; }
-.singleItemNote { background: var(--accent-glow); border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.title { font-size: 1.625rem; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.sub { color: var(--sub); font-size: 0.875rem; line-height: 1.5; }
+.singleItemNote { background: var(--accent-glow); border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px; font-size: 0.8125rem; line-height: 1.5; color: var(--text); }
 .singleItemNote strong { color: var(--accent); }
 
 .uploadZone {
@@ -10,21 +10,21 @@
   text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 24px;
 }
 .uploadZone:hover { border-color: var(--accent); background: var(--accent-glow); }
-.uploadIcon { font-size: 36px; margin-bottom: 8px; }
-.uploadTitle { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.uploadSub { font-size: 12px; color: var(--sub); }
+.uploadIcon { font-size: 2.25rem; margin-bottom: 8px; }
+.uploadTitle { font-size: 0.9375rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.uploadSub { font-size: 0.75rem; color: var(--sub); }
 .fileInput { display: none; }
 
 .previewWrap { position: relative; margin-bottom: 24px; text-align: center; }
 .previewImg { max-width: 100%; max-height: 300px; border-radius: var(--radius); border: 1px solid var(--border); }
 .clearBtn {
   position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: #fff;
-  border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;
 }
 
 .analyzeBtn {
   width: 100%; padding: 14px; border-radius: var(--radius); border: none;
-  background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
+  background: var(--accent); color: #fff; font-size: 0.9375rem; font-weight: 700;
   cursor: pointer; transition: opacity 0.15s; margin-bottom: 32px;
 }
 .analyzeBtn:hover { opacity: 0.9; }
@@ -32,91 +32,91 @@
 
 .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 40px auto 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.loadingText { text-align: center; color: var(--sub); font-size: 14px; }
+.loadingText { text-align: center; color: var(--sub); font-size: 0.875rem; }
 
 .section { margin-bottom: 28px; }
-.sectionTitle { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.sectionTitle { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 12px; }
 
 .verdictCard {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 20px; margin-bottom: 20px;
 }
 .verdictRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.verdictLabel { font-size: 13px; color: var(--sub); }
-.verdictScore { font-size: 20px; font-weight: 800; }
-.verdictText { font-size: 14px; color: var(--text); line-height: 1.5; margin-top: 8px; }
+.verdictLabel { font-size: 0.8125rem; color: var(--sub); }
+.verdictScore { font-size: 1.25rem; font-weight: 800; }
+.verdictText { font-size: 0.875rem; color: var(--text); line-height: 1.5; margin-top: 8px; }
 
 .claimCard {
   background: var(--surface); border-radius: 8px; padding: 14px; margin-bottom: 8px;
   display: flex; justify-content: space-between; align-items: center;
 }
-.claimLabel { font-size: 13px; font-weight: 600; color: var(--text); }
-.claimStatus { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.claimLabel { font-size: 0.8125rem; font-weight: 600; color: var(--text); }
+.claimStatus { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 
 .chartWrap {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 20px; margin-bottom: 20px;
 }
-.chartTitle { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
-.chartEmpty { font-size: 13px; color: var(--sub); line-height: 1.5; padding: 8px 0 4px; }
+.chartTitle { font-size: 0.875rem; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+.chartEmpty { font-size: 0.8125rem; color: var(--sub); line-height: 1.5; padding: 8px 0 4px; }
 
 /* Inline error banner (theme-aware) */
 .errorBanner {
   display: flex; align-items: flex-start; gap: 10px; justify-content: space-between;
   background: var(--surface); border: 1px solid var(--red); border-radius: 12px;
-  padding: 12px 14px; margin: 16px 0; color: var(--red); font-size: 13px; line-height: 1.5;
+  padding: 12px 14px; margin: 16px 0; color: var(--red); font-size: 0.8125rem; line-height: 1.5;
 }
-.errorDismiss { color: var(--red); background: transparent; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
+.errorDismiss { color: var(--red); background: transparent; font-size: 0.8125rem; flex-shrink: 0; padding: 0 2px; }
 
 .insightCard {
   background: var(--surface); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0;
   padding: 14px 16px; margin-bottom: 10px;
 }
-.insightText { font-size: 13px; color: var(--text); line-height: 1.5; }
+.insightText { font-size: 0.8125rem; color: var(--text); line-height: 1.5; }
 
 .newBtn {
   display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
   border-radius: 8px; background: var(--surface); border: 1px solid var(--border);
-  color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+  color: var(--text); font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   margin-top: 8px; transition: background 0.15s;
 }
 .newBtn:hover { background: var(--border); }
 
 /* Transparency button (upload screen) */
-.transparencyBtn { width: 100%; margin-top: 12px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: 13px; font-weight: 600; color: var(--accent); transition: all 0.15s; }
+.transparencyBtn { width: 100%; margin-top: 12px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: 0.8125rem; font-weight: 600; color: var(--accent); transition: all 0.15s; }
 .transparencyBtn:hover { border-color: var(--accent); background: var(--accent-glow); }
 
 /* How We Calculate This — methodology card on the results view */
 .methodCard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
-.methodTitle { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-.methodIntro { font-size: 12.5px; color: var(--sub); line-height: 1.5; margin-bottom: 14px; }
+.methodTitle { font-size: 0.9375rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.methodIntro { font-size: 0.78125rem; color: var(--sub); line-height: 1.5; margin-bottom: 14px; }
 .methodRow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
 .methodRow:first-of-type { border-top: none; }
 .methodDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
-.methodLabel { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-.methodDesc { font-size: 12px; color: var(--sub); line-height: 1.5; }
-.methodBandsLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin: 14px 0 8px; }
-.methodBand { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); padding: 4px 0; }
+.methodLabel { font-size: 0.8125rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.methodDesc { font-size: 0.75rem; color: var(--sub); line-height: 1.5; }
+.methodBandsLabel { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin: 14px 0 8px; }
+.methodBand { display: flex; align-items: center; gap: 8px; font-size: 0.78125rem; color: var(--text); padding: 4px 0; }
 .methodBandDot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
 /* Transparency modal (mirrors ScanTab's TransparencyOverview) */
 .transparencyOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
 .transparencyPanel { position: relative; background: var(--card); border-radius: 20px 20px 0 0; width: 100%; max-width: 720px; max-height: 85vh; overflow-y: auto; padding: 20px; }
-.transparencyClose { position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border-radius: 8px; color: var(--sub); font-size: 16px; background: transparent; display: flex; align-items: center; justify-content: center; }
+.transparencyClose { position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border-radius: 8px; color: var(--sub); font-size: 1rem; background: transparent; display: flex; align-items: center; justify-content: center; }
 .transparencyClose:hover { background: var(--surface); color: var(--text); }
-.transparencyTitle { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; padding-right: 36px; }
-.transparencySub { font-size: 13px; color: var(--sub); line-height: 1.55; margin-top: 6px; }
-.transparencyLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin: 18px 0 8px; }
+.transparencyTitle { font-size: 1.375rem; font-weight: 800; letter-spacing: -0.5px; padding-right: 36px; }
+.transparencySub { font-size: 0.8125rem; color: var(--sub); line-height: 1.55; margin-top: 6px; }
+.transparencyLabel { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin: 18px 0 8px; }
 .transparencyStage { display: flex; gap: 12px; margin-bottom: 12px; }
-.transparencyNum { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 12px; background: rgba(124,106,255,0.15); font-size: 11px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
-.transparencyStageTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
-.transparencyStageBody { font-size: 12.5px; color: var(--sub); line-height: 1.55; }
+.transparencyNum { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 12px; background: rgba(124,106,255,0.15); font-size: 0.6875rem; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.transparencyStageTitle { font-size: 0.875rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.transparencyStageBody { font-size: 0.78125rem; color: var(--sub); line-height: 1.55; }
 .transparencyBox { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-.factsRow { display: flex; justify-content: space-between; font-size: 13px; color: var(--sub); padding: 3px 0; }
-.factsRowBold { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--text); padding: 6px 0 2px; border-top: 1px solid var(--border); margin-top: 4px; }
-.transparencyMono { font-size: 12px; color: var(--sub); line-height: 1.6; white-space: pre-wrap; }
-.transparencyFact { font-size: 12.5px; color: var(--sub); line-height: 1.6; }
-.transparencyDone { width: 100%; margin-top: 18px; background: var(--accent); color: #fff; border-radius: 14px; padding: 13px; font-size: 15px; font-weight: 700; }
+.factsRow { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--sub); padding: 3px 0; }
+.factsRowBold { display: flex; justify-content: space-between; font-size: 0.875rem; font-weight: 700; color: var(--text); padding: 6px 0 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+.transparencyMono { font-size: 0.75rem; color: var(--sub); line-height: 1.6; white-space: pre-wrap; }
+.transparencyFact { font-size: 0.78125rem; color: var(--sub); line-height: 1.6; }
+.transparencyDone { width: 100%; margin-top: 18px; background: var(--accent); color: #fff; border-radius: 14px; padding: 13px; font-size: 0.9375rem; font-weight: 700; }
 
 @media (min-width: 600px) {
   .transparencyOverlay { align-items: center; }

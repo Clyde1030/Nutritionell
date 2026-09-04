@@ -1,6 +1,15 @@
 import type { NavIconKey } from '@/components/icons/NavIcons';
 
-export type Tab = 'home' | 'profile' | 'goals' | 'scan' | 'plan' | 'greenwashing' | 'ingredients' | 'about' | 'settings';
+export type Tab =
+  | 'home' | 'profile' | 'goals' | 'scan' | 'plan'
+  | 'greenwashing' | 'ingredients' | 'about' | 'settings'
+  // Routable but intentionally absent from TABS: the Admin screen is reached
+  // from the account menu (admins only), not from the always-visible nav. Adding
+  // it there would show a useless tab to everyone and worsen the nav's width
+  // budget. pathForTab/tabFromPath handle it explicitly below.
+  | 'admin';
+
+export const ADMIN_TAB_PATH = '/admin';
 
 export const TABS: { key: Tab; label: string; icon: NavIconKey; path: string }[] = [
   { key: 'home',         label: 'Home',         icon: 'home',         path: '/' },
@@ -24,10 +33,12 @@ const TAB_BY_PATH: Record<string, Tab> = TABS.reduce((acc, tab) => {
 }, {} as Record<string, Tab>);
 
 export function pathForTab(tab: Tab): string {
+  if (tab === 'admin') return ADMIN_TAB_PATH;
   return TABS.find((item) => item.key === tab)?.path ?? '/';
 }
 
 export function normalizeTab(value: string | null): Tab {
+  if (value === 'admin') return 'admin';
   if (value && TABS.some((tab) => tab.key === value)) {
     return value as Tab;
   }
@@ -35,5 +46,6 @@ export function normalizeTab(value: string | null): Tab {
 }
 
 export function tabFromPath(pathname: string): Tab {
+  if (pathname === ADMIN_TAB_PATH) return 'admin';
   return TAB_BY_PATH[pathname] ?? 'home';
 }

@@ -6,7 +6,7 @@ type PageProps = {
   params: { tab: string };
 };
 
-const VALID_TABS = new Set(['profile', 'goals', 'scan', 'plan', 'greenwashing', 'ingredients', 'about', 'settings']);
+const VALID_TABS = new Set(['profile', 'goals', 'scan', 'plan', 'greenwashing', 'ingredients', 'about', 'settings', 'admin']);
 
 export default function TabPage({ params }: PageProps) {
   const tab = tabFromPath(`/${params.tab}`);
