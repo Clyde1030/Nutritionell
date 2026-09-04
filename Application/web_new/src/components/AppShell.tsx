@@ -16,7 +16,7 @@ import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
 import AboutTab from '@/components/AboutTab';
 import SettingsTab from '@/components/SettingsTab';
 import AdminTab from '@/components/AdminTab';
-import { NAV_ICONS } from '@/components/icons/NavIcons';
+import { NAV_ICONS, NLogoMark } from '@/components/icons/NavIcons';
 import { initTheme } from '@/lib/theme';
 
 export default function AppShell({ initialTab }: { initialTab: Tab }) {
@@ -199,10 +199,15 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
           aria-label="Nutritionell home"
           aria-current={tab === 'home' ? 'page' : undefined}
         >
-          {/* alt="" on purpose: the button already carries aria-label="Nutritionell
-              home", so a described image would be announced twice. */}
+          {/* The original logo mark stays; the pixel N stands in for the
+              wordmark's own capital N, so the two sit side by side rather than
+              one replacing the other. The button keeps
+              aria-label="Nutritionell home", so screen readers still get the
+              whole word despite the N being an image. */}
           <img src="/logo.png" alt="" className={styles.logoMark} width={26} height={26} />
-          <span>Nutritionell</span>
+          <span className={styles.wordmark}>
+            <NLogoMark className={styles.logoN} />utritionell
+          </span>
         </button>
 
         <button

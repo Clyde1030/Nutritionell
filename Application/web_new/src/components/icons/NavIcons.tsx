@@ -87,10 +87,13 @@ export function AboutIcon(props: IconProps) {
 }
 
 export function SettingsIcon(props: IconProps) {
+  // A real toothed cog. The previous version was a circle with 8 radiating
+  // spokes, which at the nav's actual 12px render size read as a starburst
+  // rather than a settings control.
   return (
     <Icon {...props}>
-      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" strokeWidth="1.6" />
-      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 12H2M22 12h-2.2M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M18.4 5.6l-1.5 1.5M7.1 16.9l-1.5 1.5" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" strokeWidth="1.6" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" strokeWidth="1.6" strokeLinejoin="round" />
     </Icon>
   );
 }
@@ -110,3 +113,79 @@ export const NAV_ICONS: Record<NavIconKey, (props: IconProps) => JSX.Element> = 
   about: AboutIcon,
   settings: SettingsIcon,
 };
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header logo mark
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The 13 filled cells of a 5x5 grid that trace a blocky capital N:
+ *  both outer columns, plus a 3-cell diagonal joining them.
+ *
+ *      X . . . X
+ *      X X . . X
+ *      X . X . X
+ *      X . . X X
+ *      X . . . X
+ */
+const N_CELLS: [number, number][] = [
+  [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],   // left column
+  [1, 1], [2, 2], [3, 3],                    // diagonal
+  [0, 4], [1, 4], [2, 4], [3, 4], [4, 4],   // right column
+];
+
+// Geometry, derived from the viewBox so the ratios stay honest: gap = 25% of a
+// cell, stroke = 9%, corner radius = 17%. The grid is inset by half a stroke so
+// the outermost borders aren't clipped by the viewBox edge.
+//
+// The gap is wider than it looks like it needs to be, and that's the whole point:
+// at the header's real 26px the cells are ~4px across, so a tighter gap
+// antialiases into a soft blob. Rendered at true size and compared against 15%
+// and 33% variants, 25% is where the boxes read as distinct without the letter
+// falling apart into disconnected dots.
+const CELL = 16.420;
+const PITCH = 20.525;      // cell + gap
+const OFFSET = 0.739;    // stroke / 2
+const RADIUS = 2.791;
+const STROKE = 1.478;
+
+/**
+ * The app's header mark: a pixel-font "N", drawn as 13 discrete boxes.
+ *
+ * Two deliberate choices, both about staying legible at 26px (and 22px on
+ * mobile), which is the entire job here:
+ *
+ *  - `fill="var(--accent)"`, not `currentColor`. The mark should be the theme's
+ *    accent in every theme, independent of the .logo button's hover text colour.
+ *  - `stroke="var(--card)"` — the header's own background. Bordering each cell in
+ *    the background colour is what keeps adjacent boxes visually separate at tiny
+ *    sizes, and because it's a token it stays correct in every theme without a
+ *    per-theme override.
+ *
+ * There is no backing rect: the 12 unfilled grid positions simply aren't drawn,
+ * so the header shows through and the border reads as a gap rather than a ring.
+ */
+export function NLogoMark({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      fill="var(--accent)"
+      stroke="var(--card)"
+      strokeWidth={STROKE}
+      className={className}
+      aria-hidden="true"
+    >
+      {N_CELLS.map(([row, col]) => (
+        <rect
+          key={`${row}-${col}`}
+          x={OFFSET + col * PITCH}
+          y={OFFSET + row * PITCH}
+          width={CELL}
+          height={CELL}
+          rx={RADIUS}
+          ry={RADIUS}
+        />
+      ))}
+    </svg>
+  );
+}

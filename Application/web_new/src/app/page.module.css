@@ -16,6 +16,26 @@
    source art is a square with its own built-in padding, so it is only scaled —
    never cropped or letterboxed. */
 .logoMark { width: 26px; height: 26px; border-radius: 7px; display: block; flex-shrink: 0; }
+
+/* The wordmark, whose leading capital N is the pixel mark rather than a glyph. */
+.wordmark { display: inline-flex; align-items: baseline; }
+
+/* Sized in em so it tracks the wordmark's font-size automatically, at both the
+   desktop and <840px sizes, with no second rule to keep in sync.
+   
+   Not 1em: a font's capital N occupies only its cap height, so a full-em mark
+   towers over the letters beside it. Measured in-browser at the header's own
+   weight, the cap height is 0.690em in Fredoka (the light themes) and 0.720em in
+   Space Grotesk (Neon Kale). 0.70em splits those — under half a pixel out in
+   either font at this size — so the mark matches the height of a real capital N
+   in every theme without needing a per-theme rule. */
+.logoN {
+  width: 0.7em; height: 0.7em;
+  flex-shrink: 0;
+  /* The SVG box's bottom edge sits on the text baseline via align-items:baseline
+     on .wordmark, so no vertical nudge is needed. */
+  margin-right: 0.04em;
+}
 .logo:hover { color: var(--accent); }
 
 .menuToggle {
@@ -58,9 +78,12 @@
 .nav::-webkit-scrollbar { display: none; }
 
 .navBtn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 10px; border-radius: var(--radius-nav);
-  font-size: 0.8125rem; font-weight: 600; color: var(--sub);
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 7px; border-radius: var(--radius-nav);
+  /* Nav-scoped step down from the app-wide rem scale: this row is the most
+     width-critical thing in the app, and shrinking it here is what buys the
+     labels enough room to always stay visible. */
+  font-size: 0.72rem; font-weight: 600; color: var(--sub);
   transition: all 0.15s;
   /* Never squash a label into unreadability — scroll instead. */
   flex-shrink: 0;
@@ -71,30 +94,30 @@
 
 .navIcon {
   display: flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 9px;
+  width: 20px; height: 20px; border-radius: 7px;
   background: var(--surface); color: var(--sub);
   transition: background 0.15s, color 0.15s;
   flex-shrink: 0;
 }
-.navIconSvg { width: 14px; height: 14px; }
+.navIconSvg { width: 12px; height: 12px; }
 .navBtnActive .navIcon { background: var(--accent); color: var(--accent-ink); }
 
 .main { flex: 1; overflow-y: auto; }
 
 /* Responsive */
 
-/* Between the hamburger breakpoint and full desktop there used to be nothing —
-   which is why the nav overflowed at ordinary laptop widths. Here the labels drop
-   and the icon chips carry the nav; 9 chips fit comfortably where 9 labelled
-   buttons do not.
+/* Deliberately NO intermediate "icon-only" state. Every tab shows its icon AND
+   its label at every width down to the hamburger breakpoint; the nav is sized
+   (below) to make that fit rather than hiding labels to cope. The account email
+   still collapses — it's not a nav label, and it's the one elastic element left
+   in the header.
    
-   1260px is measured, not guessed: at 1280px the labelled row (logo 119 + nav 876
-   + account 167 + padding) needs ~1234px, and a real browser at 1210px was still
-   showing labels while hiding 30px of nav. Anything below ~1240 has to drop the
-   labels, so the switch sits just above that with a little headroom. */
-@media (max-width: 1260px) {
-  .navBtn { padding: 6px; gap: 0; }
-  .navBtn > span:last-child { display: none; }
+   Measured: logo 108 + nav 715 + padding 72 = 895, plus the account control.
+   With the email shown that control caps at its 210px max-width, so the row
+   needs ~1105px worst case; 1150 hides the email just above that, leaving the
+   avatar-only control (~66px) and a ~960px floor — comfortably under the 1024px
+   target. */
+@media (max-width: 1150px) {
   .accountEmail { display: none; }
   .accountBtn { padding: 4px; }
 }
@@ -102,7 +125,7 @@
 @media (max-width: 840px) {
   .header { padding: 0 12px; }
   .logo { font-size: 0.9375rem; gap: 7px; }
-  .logoMark { width: 22px; height: 22px; border-radius: 6px; }
+  .logoMark { width: 22px; height: 22px; }
   .menuToggle { display: inline-flex; }
   .nav {
     display: none;
@@ -122,10 +145,7 @@
     overflow-y: auto;
   }
   .navOpen { display: flex; }
-  .navBtn { width: 100%; justify-content: flex-start; padding: 10px 12px; }
-  /* The dropdown is a vertical list, so labels come back even though the
-     1180px rule above hid them. */
-  .navBtn > span:last-child { display: inline; }
+  .navBtn { width: 100%; justify-content: flex-start; padding: 10px 12px; font-size: 0.8125rem; }
 }
 
 /* ── Account control (header) ─────────────────────────────────────────────── */
