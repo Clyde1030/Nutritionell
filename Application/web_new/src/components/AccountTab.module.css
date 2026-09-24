@@ -1,0 +1,56 @@
+/* Phone-first: one column, max-width so a wide viewport centres it rather than
+   re-flowing into a different composition. */
+.wrap { max-width: 440px; margin: 0 auto; padding: 28px 18px 40px; }
+
+.hero { margin-bottom: 20px; }
+.title {
+  font-family: var(--f-display);
+  font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em;
+  color: var(--text); margin-bottom: 8px; line-height: 1.1;
+}
+.subtitle { font-size: 0.95rem; line-height: 1.55; color: var(--sub); }
+.muted { font-size: 0.85rem; line-height: 1.5; color: var(--sub); margin-top: 10px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card + .card { margin-top: 14px; }
+.cardTitle {
+  font-family: var(--f-display);
+  font-size: 0.95rem; font-weight: 800; color: var(--text); margin-bottom: 2px;
+}
+
+.primaryBtn, .secondaryBtn {
+  width: 100%; font: inherit; font-size: 0.95rem; font-weight: 700;
+  border-radius: var(--radius-btn); padding: 13px; cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.primaryBtn { background: var(--accent); color: var(--accent-ink); border: none; }
+.primaryBtn:hover { opacity: 0.9; }
+.secondaryBtn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.secondaryBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.listRow, .linkRow {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 6px; text-align: left;
+  background: none; border: none; font: inherit; color: inherit;
+}
+.linkRow { cursor: pointer; border-radius: 14px; }
+.linkRow:hover { background: var(--surface); }
+
+.rowIcon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 11px;
+  background: var(--accent-glow); color: var(--accent);
+}
+.rowIconSvg { width: 17px; height: 17px; }
+
+.rowMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.rowLabel { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.rowBlurb { font-size: 0.78rem; line-height: 1.4; color: var(--sub); }
+
+.chevron { color: var(--sub); font-size: 1.3rem; line-height: 1; flex-shrink: 0; }

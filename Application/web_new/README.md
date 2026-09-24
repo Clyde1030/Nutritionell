@@ -153,8 +153,10 @@ account** — only Home and Contact Us work signed out.
    YOLO + Gemini pipeline and needs `GEMINI_API_KEY` set in
    `Application/backend/.env`. For fast iteration without spending Gemini
    tokens, flip `USE_MOCK_ANALYZE` to `true` in `src/lib/api.ts` to hit
-   `/api/analyze/mock` instead (4 canned products) — note the mock route
-   requires auth too, so it exercises the same contract as the real one.
+   `/api/analyze/mock` instead (4 canned products) — the mock route mirrors the
+   real one's auth behaviour (public, optional bearer token, and it drops
+   `scored` to `false` for anonymous and not-yet-approved callers), so flipping
+   the flag exercises the same contract.
 6. **Plan tab** — generate a plan; should return real, profile-specific
    content (also needs `GEMINI_API_KEY`). The request has no body — the plan is
    built from whoever holds the token.

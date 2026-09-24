@@ -1,4 +1,7 @@
-export type ScoreEnum = 'Great Fit' | 'Just OK Fit' | 'Neutral Fit' | "Doesn't Fit" | 'Unidentified';
+export type ScoreEnum =
+  | 'Great Fit' | 'Just OK Fit' | 'Neutral Fit' | "Doesn't Fit" | 'Unidentified'
+  // Identified but deliberately not judged — an anonymous or pending caller.
+  | 'Not Scored';
 
 export interface NutritionalFacts {
   calories?: number;
@@ -75,6 +78,11 @@ export interface PerformanceSummary {
 }
 
 export interface ShelfAnalysisResponse {
+  /** false when the caller wasn't a signed-in approved user, so no fit scoring
+   *  was run. Picks which results view to render. */
+  scored?: boolean;
+  /** 'anonymous' | 'pending' | 'approved' — picks which nudge to show. */
+  auth_state?: string;
   products: ProductItem[];
   total_products_found: number;
   analysis_notes?: string;
@@ -173,6 +181,8 @@ export const SCORE_LABELS: Record<ScoreEnum, string> = {
   'Neutral Fit': 'Neutral Fit',
   "Doesn't Fit": "Doesn't Fit",
   Unidentified: 'Unidentified',
+  // Never rendered: the unscored results view doesn't consult these maps.
+  'Not Scored': 'Not scored',
 };
 
 // Mirrors the backend's deterministic total_score bands (score_breakdown.total_score):
@@ -184,6 +194,8 @@ export const SCORE_DESCRIPTIONS: Record<ScoreEnum, string> = {
   'Neutral Fit': "Total score 0-3 — no hard exclusions and no meaningful conflicts, but it doesn't meaningfully advance your goals either.",
   "Doesn't Fit": "Contains an allergy, an avoided ingredient, conflicts with your dietary philosophy or a medical condition, or exceeds your processing tolerance — an instant hard exclusion — or the five scored dimensions summed below 0.",
   Unidentified: "The product couldn't be confidently identified from the photo, so we couldn't evaluate it against your profile.",
+  // Never rendered: the unscored results view doesn't consult these maps.
+  'Not Scored': 'Identified, but not scored — sign in to see how it fits your profile.',
 };
 
 export const SCORE_COLORS: Record<ScoreEnum, string> = {
@@ -192,6 +204,8 @@ export const SCORE_COLORS: Record<ScoreEnum, string> = {
   'Neutral Fit': '#38bdf8',
   "Doesn't Fit": '#ef4444',
   Unidentified: '#6b7280',
+  // Never rendered: the unscored results view doesn't consult these maps.
+  'Not Scored': '#6b7280',
 };
 
 export const SCORE_BG: Record<ScoreEnum, string> = {
@@ -200,6 +214,8 @@ export const SCORE_BG: Record<ScoreEnum, string> = {
   'Neutral Fit': 'rgba(56,189,248,0.2)',
   "Doesn't Fit": 'rgba(239,68,68,0.2)',
   Unidentified: 'rgba(107,114,128,0.2)',
+  // Never rendered: the unscored results view doesn't consult these maps.
+  'Not Scored': 'rgba(107,114,128,0.2)',
 };
 
 export const NOVA_LABELS: Record<number, string> = {

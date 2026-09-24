@@ -31,7 +31,7 @@ const FEATURES = [
   { icon: '🎯', title: 'Goals in your own words', text: 'Write what you are actually trying to do — more protein, less sugar, lower sodium — and scoring takes it into account.' },
   { icon: '⊕', title: 'Shelf scanning', text: 'AI detects every product in one photo and scores it against your profile — a whole shelf at once, not one barcode at a time.' },
   { icon: '📋', title: 'Your nutrition plan', text: 'A personalised plan built from your profile and goals: daily targets, weekly focus areas, foods to emphasise and limit.' },
-  { icon: '🌿', title: 'Greenwashing check', text: 'Photograph a single label and see how far the marketing claims sit from what the product actually is.' },
+  { icon: '🌿', title: 'Claim Check', text: 'Photograph a single label and see how far the marketing claims sit from what the product actually is.' },
   { icon: '🧬', title: 'Nutrition insights', text: 'Break down ingredients and nutrition, with the evidence behind each concern, so you can compare with confidence.' },
 ];
 
@@ -52,7 +52,7 @@ const VALUE_PROPS = [
   },
   {
     title: 'Marketing claims held to a standard',
-    text: 'Front-of-pack claims like "All Natural" or "Heart Healthy" aren’t always what they seem. Our greenwashing check compares the claim to the actual ingredients and nutrition.',
+    text: 'Front-of-pack claims like "All Natural" or "Heart Healthy" aren’t always what they seem. Claim Check compares the claim to the actual ingredients and nutrition.',
   },
   {
     title: 'Transparent about how it works',
@@ -79,7 +79,9 @@ export default function HomeTab({ onNavigate, onGetStarted }: Props) {
               the account flow, since nothing past Home and Contact Us works
               without one. */}
           <button className={s.ctaPrimary} onClick={onGetStarted}>Create your free account</button>
-          <button className={s.ctaSecondary} onClick={() => onNavigate('about')}>Get in touch</button>
+          {/* v2: 'about' folded into this very tab, so the secondary CTA points
+              at Scan — the landing page and the thing we most want tried. */}
+          <button className={s.ctaSecondary} onClick={() => onNavigate('scan')}>Scan a shelf</button>
         </div>
       </section>
 

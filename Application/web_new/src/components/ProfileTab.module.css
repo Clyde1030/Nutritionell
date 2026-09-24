@@ -112,5 +112,5 @@
 
 @media (min-width: 600px) {
   .modalOverlay { align-items: center; }
-  .modal { border-radius: 20px; }
+  .modal { border-radius: var(--radius); }
 }

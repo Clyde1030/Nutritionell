@@ -2,11 +2,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, ENDPOINTS, USE_MOCK_ANALYZE, authFetch, readDetail } from '@/lib/api';
 import { getMaxDetections, getYoloModel } from '@/lib/storage';
+import { useAuth } from '@/lib/AuthContext';
+import {
+  CameraGlyph, DropZone, HowItWorksCard, LandingHero, PrimaryCta, WhatToKnowCard,
+  landingStyles as L,
+} from '@/components/landing/Landing';
 import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
 import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
 import CameraCapture from './CameraCapture';
 import TransparencyOverview from './TransparencyOverview';
 import s from './ScanTab.module.css';
+import a from './AnonymousResults.module.css';
 
 interface Alternative {
   brand: string;
@@ -26,6 +32,8 @@ type ResultFilter = 'all' | ScoreEnum;
 type ResultSort = 'best' | 'worst' | 'az';
 const SCORE_RANK: Record<ScoreEnum, number> = {
   'Great Fit': 4, 'Just OK Fit': 3, 'Neutral Fit': 2, "Doesn't Fit": 1, 'Unidentified': 0,
+  // Unused in practice: this sort only runs on the scored results view.
+  'Not Scored': 0,
 };
 const SORT_LABELS: Record<ResultSort, string> = {
   best: 'Best fit first', worst: 'Worst fit first', az: 'Name (A–Z)',
@@ -99,7 +107,14 @@ function finalBoxes(result: ShelfAnalysisResponse): { bbox: number[]; color: str
   return products.map(p => ({ bbox: p.bounding_box, color: SCORE_COLORS[p.scoring], badge: p.scoring[0], product: p }));
 }
 
-export default function ScanTab() {
+export default function ScanTab({
+  onSignIn,
+  onNavigate,
+}: {
+  onSignIn: () => void;
+  onNavigate: (tab: string) => void;
+}) {
+  const { status } = useAuth();
   const [view, setView] = useState<View>('picker');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<ShelfAnalysisResponse | null>(null);
@@ -389,10 +404,23 @@ export default function ScanTab() {
     );
   }
 
+  // Unscored payload (anonymous, or signed in but awaiting approval) gets its
+  // own neutral results screen — see AnonymousResults.
+  if (view === 'results' && result && result.scored === false) {
+    return (
+      <AnonymousResults
+        result={result}
+        authState={result.auth_state ?? 'anonymous'}
+        onSignIn={onSignIn}
+        onNewScan={() => { setResult(null); setView('picker'); }}
+      />
+    );
+  }
+
   if (view === 'results' && result) {
     const counts = result.products.reduce((acc, p) => {
       acc[p.scoring] = (acc[p.scoring] ?? 0) + 1; return acc;
-    }, {} as Record<ScoreEnum, number>);
+    }, {} as Partial<Record<ScoreEnum, number>>);
 
     return (
       <div className={s.resultsPage}>
@@ -504,73 +532,63 @@ export default function ScanTab() {
     );
   }
 
-  // Picker
+  // ── Landing (public) ──────────────────────────────────────────────────────
   return (
-    <div className={s.pickerPage}>
-      <div className={s.pickerContainer}>
-        <h1 className={s.title}>Scan a Shelf</h1>
-        <p className={s.sub}>Upload a photo of a grocery shelf for AI-powered nutritional analysis</p>
+    <div className={L.wrap}>
+      <LandingHero
+        glyph={<CameraGlyph />}
+        headline="Shelf Scan"
+        subhead="Point your camera at a grocery shelf. Get nutrition info on every product."
+        onHowItWorks={() => document.getElementById('scan-how')?.scrollIntoView({ behavior: 'smooth' })}
+        onWhatToKnow={() => document.getElementById('scan-know')?.scrollIntoView({ behavior: 'smooth' })}
+      />
 
-        {errorMsg && (
-          <div className={s.errorBanner}>
-            <span>⚠️ {errorMsg}</span>
-            <button className={s.errorDismiss} onClick={() => setErrorMsg(null)} aria-label="Dismiss">✕</button>
-          </div>
-        )}
-
-        {/* Drop zone */}
-        <div className={s.dropZone}
-          onDrop={handleDrop}
-          onDragOver={e => e.preventDefault()}
-          onClick={() => fileRef.current?.click()}>
-          <div className={s.dropIcon}>🖼️</div>
-          <p className={s.dropTitle}>Drop an image here or click to upload</p>
-          <p className={s.dropSub}>JPEG, PNG, WebP, or iPhone (HEIC) • Works best with a clear photo of a grocery shelf</p>
-          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput}
-            onChange={e => handleFile(e.target.files?.[0] ?? null)} />
+      {errorMsg && (
+        <div className={s.errorBanner}>
+          <span>⚠️ {errorMsg}</span>
+          <button className={s.errorDismiss} onClick={() => setErrorMsg(null)} aria-label="Dismiss">✕</button>
         </div>
+      )}
 
-        {/* Reflects the user's Settings choice; read at render so it stays current. */}
-        <p className={s.scanSettingNote}>
-          Analyzing up to <strong>{getMaxDetections()}</strong> products per scan · change this in <strong>Settings ⚙</strong>
-        </p>
+      <DropZone
+        title="Drop an image here or tap to upload"
+        caption="JPEG, PNG, WebP, or iPhone photo · Works best with a clear shot of a shelf"
+        onClick={() => fileRef.current?.click()}
+        onDrop={handleDrop}
+      />
+      <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput}
+        onChange={e => handleFile(e.target.files?.[0] ?? null)} />
 
-        {/* Live camera capture */}
-        <button className={s.cameraBtn} onClick={() => setShowCamera(true)}>
-          📷  Take a Photo
-        </button>
+      <PrimaryCta label="Take a Photo" onClick={() => setShowCamera(true)} />
 
-        {/* Transparency + privacy */}
-        <button className={s.transparencyBtn} onClick={() => setShowTransparency(true)}>
-          🔎  Transparency Overview — see exactly what we send before you scan
-        </button>
+      {/* Reflects the user's Settings choice; read at render so it stays current. */}
+      <p className={L.ctaCaption}>
+        Analyzing up to {getMaxDetections()} products per scan ·{' '}
+        <button onClick={() => onNavigate('settings')}>Settings</button>
+      </p>
 
-        <div className={s.privacyNote}>
-          <p className={s.privacyTitle}>A note on privacy</p>
-          <p className={s.privacyText}>
-            Our current version does not blur faces, so try to avoid people in frame. Either way,
-            we do not store your images, and our models focus on picking up products while ignoring
-            background noise.
-          </p>
-        </div>
+      <HowItWorksCard
+        id="scan-how"
+        steps={[
+          { title: 'Upload a photo', detail: 'Snap a grocery shelf or pick an image from your camera roll.' },
+          { title: 'Every product is found', detail: 'Detection locates each item on the shelf, not just the one in front.' },
+          { title: 'Each one is identified', detail: 'Brand, product and variant are read off the packaging.' },
+          { title: 'See the results', detail: 'Nutrition info for everyone — a fit score if you\u2019re signed in.' },
+        ]}
+      />
 
-        {/* How it works */}
-        <div className={s.howCard}>
-          <p className={s.howTitle}>How it works</p>
-          {[
-            ['1', 'Upload or snap a photo of a grocery shelf'],
-            ['2', 'AI identifies every product and reads the label'],
-            ['3', 'Products are scored against your profile, goals, and philosophy'],
-            ['4', 'Tap any product for full nutrition details and factor-by-factor reasoning'],
-          ].map(([n, t]) => (
-            <div key={n} className={s.howRow}>
-              <span className={s.howNum}>{n}</span>
-              <span className={s.howText}>{t}</span>
-            </div>
-          ))}
-        </div>
+      <WhatToKnowCard
+        id="scan-know"
+        sections={[
+          { label: 'Privacy', body: 'We don\u2019t blur faces yet, so try to avoid people in frame. We never store your images.' },
+          { label: 'Signed in vs. not', body: 'Not signed in, you still get full nutrition facts, processing level, and flagged ingredients. Sign in for a fit score against your allergies and goals.' },
+          { label: 'Scan settings', body: 'Change how many products are analyzed per scan any time in Settings.' },
+        ]}
+      />
 
-      </div>
+      <button className={s.transparencyBtn} onClick={() => setShowTransparency(true)}>
+        Transparency Overview — see exactly what we send before you scan
+      </button>
 
       {showCamera && (
         <CameraCapture
@@ -873,6 +891,93 @@ function ScoreBreakdownCard({ breakdown }: { breakdown: NonNullable<ProductItem[
           <span>Total score</span><span>{breakdown.total_score}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Anonymous / pending results.
+
+   Deliberately NOT the scored view with the score stripped out: an unscored
+   result must read as informational, never as a judgement. So no traffic-light
+   colours, no accent green on the data itself — just neutral pills, with the one
+   warm --flag-* pair reserved for flagged ingredients.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+function AnonymousResults({
+  result, authState, onSignIn, onNewScan,
+}: {
+  result: ShelfAnalysisResponse;
+  authState: string;
+  onSignIn: () => void;
+  onNewScan: () => void;
+}) {
+  const named = result.products.filter(p => p.scoring !== 'Unidentified');
+  const pending = authState === 'pending';
+
+  return (
+    <div className={a.wrap}>
+      <div className={a.head}>
+        <h1 className={a.title}>
+          {named.length} product{named.length === 1 ? '' : 's'} found
+        </h1>
+        <button className={a.newScan} onClick={onNewScan}>New scan</button>
+      </div>
+
+      <ul className={a.list}>
+        {named.map((p, i) => {
+          const n = p.nutritional_facts;
+          const flagged = (n?.flagged_ingredients ?? []).filter(Boolean);
+          return (
+            <li key={`${p.brand}-${p.product_name}-${i}`} className={a.card}>
+              {p.crop_image
+                ? <img className={a.thumb} src={p.crop_image} alt="" />
+                : <span className={a.thumb} aria-hidden="true" />}
+
+              <div className={a.body}>
+                <p className={a.brand}>{p.brand}</p>
+                <p className={a.name}>{p.product_name}</p>
+
+                <div className={a.tags}>
+                  {p.processing_level != null && (
+                    <span className={a.tag}>NOVA {p.processing_level}</span>
+                  )}
+                  {n?.calories != null && <span className={a.tag}>{Math.round(n.calories)} cal</span>}
+                  {n?.sodium_mg != null && <span className={a.tag}>{Math.round(n.sodium_mg)}mg sodium</span>}
+                  {n?.total_sugars_g != null && <span className={a.tag}>{n.total_sugars_g}g sugar</span>}
+                  {flagged.length > 0 && (
+                    <span className={a.flagTag}>⚑ {flagged.slice(0, 2).join(' & ')}</span>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className={a.nudge}>
+        <span className={a.nudgeTile} aria-hidden="true">
+          <CameraGlyph />
+        </span>
+        {pending ? (
+          <>
+            <p className={a.nudgeTitle}>Your account is awaiting approval</p>
+            <p className={a.nudgeText}>
+              Once an admin approves you, every scan is scored against your allergies,
+              goals and dietary philosophy — no need to sign up again.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className={a.nudgeTitle}>Want to know if these products meet your dietary needs?</p>
+            <p className={a.nudgeText}>
+              Sign in to score every product against your allergies, goals, and dietary philosophy.
+            </p>
+            <button className={a.nudgeBtn} onClick={onSignIn}>Sign In</button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -12,19 +12,31 @@
   --sub: oklch(48% 0.015 80);
   --accent: oklch(42% 0.15 155);
   --accent-ink: #ffffff;
-  --accent-glow: oklch(42% 0.15 155 / 0.1);
+  --accent-glow: oklch(42% 0.15 155 / 0.12);
+  --accent-glow2: oklch(42% 0.15 155 / 0.22);
+  --accent-strong: oklch(30% 0.11 155);
   --green: oklch(56% 0.15 150);
   --green-bg: oklch(93% 0.045 150);
   --red: oklch(55% 0.18 25);
   --red-bg: oklch(55% 0.18 25 / 0.06);
   --yellow: oklch(55% 0.14 85);
   --yellow-bg: oklch(55% 0.14 85 / 0.07);
-  --radius: 20px;
+
+  /* Unscored scan results — see the note in lib/theme.ts. Eggplant and Neon Kale
+     don't define these, so they fall back to these Avocado values rather than
+     breaking; revisit if either theme ever needs its own neutral ramp. */
+  --neutral-bg: oklch(95% 0.004 260);
+  --neutral-text: oklch(40% 0.01 260);
+  --neutral-border: oklch(88% 0.006 260);
+  --flag-bg: oklch(93% 0.02 60);
+  --flag-text: oklch(42% 0.03 55);
+
+  --radius: 26px;
   --radius-btn: 999px;
   --radius-nav: 999px;
   --shadow: 0 10px 26px oklch(40% 0.03 80 / 0.08);
-  --f-display: 'Fredoka', sans-serif;
-  --f-body: 'Karla', sans-serif;
+  --f-display: 'Baloo 2', sans-serif;
+  --f-body: 'Inter', sans-serif;
 }
 
 /* Karla (light themes) and Work Sans (dark) have a taller x-height than the

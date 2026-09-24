@@ -1,5 +1,5 @@
 import AppShell from '@/components/AppShell';
 
 export default function Home() {
-  return <AppShell initialTab="home" />;
+  return <AppShell initialTab="scan" />;
 }

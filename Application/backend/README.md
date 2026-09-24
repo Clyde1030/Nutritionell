@@ -145,18 +145,28 @@ curl "$ALB/health"
 curl "$ALB/health/model"
 ```
 
-`/api/analyze` needs a real `profile_id` — create one first (all fields are optional,
-see [app/schemas/user.py](app/schemas/user.py)):
+`/api/analyze` is public and takes no `profile_id` — the profile is read from the
+bearer token, if there is one. The route has three caller states:
+
+| Caller | Response |
+| --- | --- |
+| No token, or an invalid/expired one | Products, nutrition facts and flagged ingredients. `scoring` is `"Not Scored"`, `scored: false`, `auth_state: "anonymous"`. |
+| Signed in, not yet approved | Same as anonymous, but `auth_state: "pending"`. |
+| Signed in and approved | Fully scored against that user's profile. `scored: true`, `auth_state: "approved"`. |
 
 ```bash
-PROFILE_ID=$(curl -sS -X POST "$ALB/api/profile" \
+# Anonymous — no Authorization header at all.
+curl -X POST "$ALB/api/analyze" -F "image=@app/assets/sample_shelf.jpg"
+
+# Scored — sign in first, then pass the token.
+TOKEN=$(curl -sS -X POST "$ALB/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"dietary_philosophy": "Vegan", "allergies_and_conditions": ["Peanut Allergy"]}' \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+  -d '{"email": "you@example.com", "password": "..."}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
 
 curl -X POST "$ALB/api/analyze" \
-  -F "image=@app/assets/sample_shelf.jpg" \
-  -F "profile_id=$PROFILE_ID"
+  -H "Authorization: Bearer $TOKEN" \
+  -F "image=@app/assets/sample_shelf.jpg"
 ```
 
 ### Building and deploying a new image

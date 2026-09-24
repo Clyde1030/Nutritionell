@@ -159,7 +159,7 @@
 
 @media (min-width: 600px) {
   .detailOverlay { align-items: center; }
-  .detailPanel { border-radius: 20px; }
+  .detailPanel { border-radius: var(--radius); }
 }
 
 /* ── Live analyzing overlay + stage stepper ─────────────────────────────── */

@@ -1,0 +1,176 @@
+/* Shared landing furniture — Scan, Claim Check, Analytics.
+   Built at ~390px; the shell centres it on anything wider. */
+
+.wrap { padding: 8px 18px 28px; }
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.hero { text-align: center; padding: 22px 0 8px; }
+
+.shelf { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+
+/* The silhouettes' bottom edges sit flush on the ledge, so the row is bottom-aligned. */
+.shelfRow { display: flex; align-items: flex-end; justify-content: center; gap: 16px; }
+
+.silhouette { width: 34px; height: 64px; display: block; flex-shrink: 0; }
+
+.tile {
+  width: 60px; height: 60px; border-radius: 20px;
+  background: var(--accent); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.tile svg { width: 30px; height: 30px; }
+
+.ledge {
+  width: 230px; height: 7px; border-radius: 999px;
+  background: var(--accent-glow); margin-top: 6px;
+}
+.ledgeShadow {
+  width: 200px; height: 2px; border-radius: 999px;
+  background: var(--accent-glow); opacity: 0.45; margin-top: 3px;
+}
+
+.headline {
+  font-family: var(--f-display);
+  font-size: 2.5rem; font-weight: 800; letter-spacing: -0.035em;
+  line-height: 1.05; color: var(--text); margin-bottom: 10px;
+}
+.subhead {
+  font-size: 0.95rem; line-height: 1.55; color: var(--sub);
+  max-width: 320px; margin: 0 auto 16px;
+}
+
+.heroBtns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.pillBtn {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-btn);
+  padding: 9px 16px; font: inherit; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.pillBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Drop zone ────────────────────────────────────────────────────────────── */
+.dropZone {
+  margin-top: 22px; padding: 26px 20px;
+  background: var(--accent-glow); border-radius: var(--radius);
+  text-align: center; cursor: pointer;
+  transition: background 0.15s;
+}
+.dropZone:hover { background: var(--accent-glow2); }
+.dropTile {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 15px; margin-bottom: 12px;
+  background: var(--card); color: var(--accent);
+}
+.dropTile svg { width: 22px; height: 22px; }
+.dropTitle { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+.dropCaption { font-size: 0.75rem; line-height: 1.45; color: var(--sub); }
+
+/* ── Primary CTA ──────────────────────────────────────────────────────────── */
+.cta {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; margin-top: 12px;
+  background: var(--accent); color: var(--accent-ink);
+  border: none; border-radius: var(--radius-btn);
+  padding: 15px; font: inherit; font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.cta:hover:not(:disabled) { opacity: 0.9; }
+.cta:disabled { opacity: 0.55; cursor: not-allowed; }
+.ctaIcon { display: flex; }
+.ctaIcon svg { width: 19px; height: 19px; }
+
+.ctaCaption {
+  font-size: 0.75rem; color: var(--sub); text-align: center; margin-top: 10px;
+}
+.ctaCaption button, .ctaCaption a {
+  background: none; border: none; padding: 0; font: inherit;
+  color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: none;
+}
+.ctaCaption button:hover, .ctaCaption a:hover { text-decoration: underline; }
+
+/* ── Info cards ───────────────────────────────────────────────────────────── */
+.card {
+  margin-top: 16px; padding: 20px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.cardTitle {
+  font-family: var(--f-display);
+  font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em;
+  color: var(--text); margin-bottom: 14px;
+}
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.step { display: flex; gap: 12px; align-items: flex-start; }
+.stepNum {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: var(--accent-glow); color: var(--accent);
+  font-size: 0.78rem; font-weight: 800;
+}
+.stepBody { display: flex; flex-direction: column; gap: 2px; }
+.stepTitle { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.stepDetail { font-size: 0.8rem; line-height: 1.45; color: var(--sub); }
+
+.knowList { display: flex; flex-direction: column; gap: 16px; }
+.knowItem { display: flex; flex-direction: column; gap: 4px; }
+.knowLabel {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--accent);
+}
+.knowBody { font-size: 0.83rem; line-height: 1.55; color: var(--sub); }
+
+/* ── Analytics node cluster (replaces the shelf ledge on that tab) ─────────── */
+.nodeWrap {
+  position: relative; width: 260px; height: 260px;
+  margin: 0 auto 4px;
+}
+.nodeSvg { width: 100%; height: 100%; display: block; }
+.nodeTile {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 60px; height: 60px; border-radius: 20px;
+  background: var(--accent); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+}
+.nodeTile svg { width: 30px; height: 30px; }
+
+/* ── Search card (Analytics' equivalent of the drop zone) ─────────────────── */
+.searchCard {
+  margin-top: 8px; padding: 14px;
+  background: var(--accent-glow); border-radius: var(--radius);
+}
+.searchRow {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border-radius: var(--radius-btn);
+  padding: 5px 5px 5px 14px;
+}
+.searchIcon { display: flex; color: var(--sub); flex-shrink: 0; }
+.searchIcon svg { width: 17px; height: 17px; }
+.searchField {
+  flex: 1; min-width: 0; border: none; background: none;
+  font: inherit; font-size: 0.9rem; color: var(--text); padding: 9px 0;
+}
+.searchField:focus { outline: none; }
+.searchField::placeholder { color: var(--sub); }
+.searchGo {
+  background: var(--accent); color: var(--accent-ink);
+  border: none; border-radius: var(--radius-btn);
+  padding: 10px 18px; font: inherit; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer; flex-shrink: 0;
+}
+.searchGo:hover { opacity: 0.9; }
+
+.sectionLabel {
+  font-size: 0.8rem; font-weight: 700; color: var(--text);
+  margin: 20px 0 10px;
+}
+.chipRow { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-btn);
+  padding: 8px 13px; font: inherit; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chipActive { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

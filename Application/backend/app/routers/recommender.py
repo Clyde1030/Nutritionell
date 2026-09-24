@@ -16,8 +16,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from google.genai import errors as genai_errors
 from pydantic import BaseModel
 
-from app.models.user import User
-from app.services.auth_service import get_current_approved_user
 from app.services.gemini_service import GeminiService
 
 logger = logging.getLogger(__name__)
@@ -33,10 +31,9 @@ class RecommenderRequest(BaseModel):
 @router.post("/recommender")
 async def recommend(
     body: RecommenderRequest,
-    current_user: User = Depends(get_current_approved_user),
 ):
-    # No user-owned data here either — login is required per the product rule
-    # that key features are account-gated, not for an ownership check.
+    # PUBLIC: the recommender touches no user-owned data, and the tab is reachable
+    # without an account, so there is nothing to gate on.
     try:
         return await gemini_service.recommend_alternatives(body.product)
     except genai_errors.APIError as exc:

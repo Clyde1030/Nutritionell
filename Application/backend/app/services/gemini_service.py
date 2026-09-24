@@ -961,11 +961,16 @@ class GeminiService:
         self,
         image_bytes: bytes,
         mime_type: str,
-        profile: UserProfile,
+        profile: Optional[UserProfile],
         db: AsyncSession,
         max_detections: Optional[int] = None,
         yolo_model: Optional[str] = None,
     ) -> ShelfAnalysisResponse:
+        """`profile=None` runs detection, identification and USDA enrichment but
+        SKIPS the Gemini fit-scoring pass — that's the anonymous/pending path.
+        There is nothing to score against without a profile, and skipping it is
+        also what keeps a public endpoint from spending a Gemini scoring call
+        per product for a caller we can't attribute."""
         raw_products = await self._detect_and_identify(
             image_bytes, mime_type, profile,
             max_detections=max_detections, yolo_model=yolo_model,
@@ -985,19 +990,23 @@ class GeminiService:
             item["_usda"] = usda_food
             enriched.append(item)
 
-        products = await self._scoring_pass(enriched, profile)
+        if profile is None:
+            products = [self._to_unscored_product_item(item) for item in enriched]
+        else:
+            products = await self._scoring_pass(enriched, profile)
         detections = self._build_detections(raw_products, roles)
         return ShelfAnalysisResponse(
             products=products,
             total_products_found=len(products),
             detections=detections,
+            scored=profile is not None,
         )
 
     async def analyze_shelf_stream(
         self,
         image_bytes: bytes,
         mime_type: str,
-        profile: UserProfile,
+        profile: Optional[UserProfile],
         db: AsyncSession,
         max_detections: Optional[int] = None,
         yolo_model: Optional[str] = None,
@@ -1024,7 +1033,9 @@ class GeminiService:
           complete         result (ShelfAnalysisResponse json, incl. detections + performance)
         """
         t0 = time.monotonic()
-        profile_ctx = _build_profile_context(profile)
+        # profile=None is the anonymous/pending path: identify and enrich, but
+        # never score. See analyze_shelf's docstring.
+        profile_ctx = _build_profile_context(profile) if profile is not None else ""
 
         # ── Stage 1: detection (YOLO) ──────────────────────────────────────────
         # YOLO inference + cropping are blocking/CPU work — run them in a thread so
@@ -1137,7 +1148,28 @@ class GeminiService:
         # ── Stage 3: analysis — one product per call (enrich+score merged), streamed ──
         yield {"stage": "analyzing", "total": len(pending)}
         t_an = time.monotonic()
-        if pending:
+        if pending and profile is None:
+            # Anonymous / pending: enrichment only. The combined enrich+score call
+            # below has no profile to score against, so run the batch enrichment
+            # path instead and emit each product as soon as the batch lands.
+            items = list(pending.items())
+            await self._enrich_products([it for _, it in items])
+            an_total = len(items)
+            for an_done, (pidx, item) in enumerate(items, start=1):
+                usda_food = await rag_service.lookup(
+                    product_name=item.get("product_name", ""),
+                    brand=item.get("brand", ""),
+                    db=db,
+                )
+                item["_usda"] = usda_food
+                prod = self._to_unscored_product_item(item)
+                products[pidx] = prod
+                yield {
+                    "stage": "analyzed_item", "product_index": pidx,
+                    "product": prod.model_dump(mode="json"),
+                    "done": an_done, "total": an_total, "eta_ms": _eta_ms(t_an, an_done, an_total),
+                }
+        elif pending:
             sem = asyncio.Semaphore(ANALYZE_STREAM_CONCURRENCY)
             db_lock = asyncio.Lock()
 
@@ -1171,11 +1203,12 @@ class GeminiService:
         response = ShelfAnalysisResponse(
             products=final_products, total_products_found=len(final_products),
             detections=detections, performance=performance,
+            scored=profile is not None,
         )
         yield {"stage": "complete", "result": response.model_dump(mode="json")}
 
     async def _detect_and_identify(
-        self, image_bytes: bytes, mime_type: str, profile: UserProfile,
+        self, image_bytes: bytes, mime_type: str, profile: Optional[UserProfile],
         max_detections: Optional[int] = None, yolo_model: Optional[str] = None,
     ) -> list[dict]:
         """Localise products with YOLO, then identify each crop with Gemini.
@@ -1241,7 +1274,7 @@ class GeminiService:
         return [(parsed[k] if k < len(parsed) else {}) for k in range(len(batch_crops))]
 
     async def _vision_pass_from_crops(
-        self, image_bytes: bytes, boxes: list[dict], profile: UserProfile
+        self, image_bytes: bytes, boxes: list[dict], profile: Optional[UserProfile] = None
     ) -> list[dict]:
         img_w, img_h = Image.open(io.BytesIO(image_bytes)).size
         crops = crop_boxes(image_bytes, boxes)
@@ -1312,8 +1345,11 @@ class GeminiService:
                 p["nutrition"] = data.get("nutrition")
 
     async def _vision_pass(
-        self, image_bytes: bytes, mime_type: str, profile: UserProfile
+        self, image_bytes: bytes, mime_type: str, profile: Optional[UserProfile] = None
     ) -> list[dict]:
+        # `profile` is unused — identification is profile-independent. Kept in the
+        # signature so callers read consistently, and typed Optional because the
+        # anonymous path passes None.
         system_prompt = _build_whole_image_identification_prompt()
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         response = await self._generate_content(
@@ -1496,6 +1532,19 @@ class GeminiService:
             "flagged_ingredients": data.get("flagged_ingredients", []),
         }
         return self._to_product_item(item, sd)
+
+    @staticmethod
+    def _to_unscored_product_item(item: dict) -> ProductItem:
+        """An identified product with no fit judgement attached.
+
+        Not the same as passing an empty `sd` to _to_product_item: that yields
+        ScoreEnum.UNIDENTIFIED, which means "we couldn't tell what this is".
+        Here we know exactly what it is — we just aren't scoring it.
+        """
+        return GeminiService._to_product_item(
+            item,
+            {"scoring": ScoreEnum.NOT_SCORED.value, "reasoning": "", "score_breakdown": {}},
+        )
 
     @staticmethod
     def _to_product_item(item: dict, sd: dict) -> ProductItem:

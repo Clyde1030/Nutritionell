@@ -13,6 +13,10 @@ class ScoreEnum(str, Enum):
     NEUTRAL = "Neutral Fit"
     DOESNT_FIT = "Doesn't Fit"
     UNIDENTIFIED = "Unidentified"
+    # The product WAS identified, we just didn't score it — an anonymous or
+    # not-yet-approved caller gets nutrition facts without a fit judgement.
+    # Distinct from UNIDENTIFIED, which means we couldn't tell what it is.
+    NOT_SCORED = "Not Scored"
 
 
 class ScoreBreakdown(BaseModel):
@@ -118,6 +122,13 @@ class ShelfAnalysisResponse(BaseModel):
     products: List[ProductItem]
     total_products_found: int
     analysis_notes: Optional[str] = None
+    # ── Caller state ─────────────────────────────────────────────────────────
+    # Scan is public. `scored` tells the frontend which results view to render;
+    # `auth_state` tells it which nudge to show underneath (sign-in vs. "your
+    # account is awaiting approval"). Defaults describe the signed-in approved
+    # case so existing callers keep the old shape.
+    scored: bool = True
+    auth_state: str = "approved"   # "anonymous" | "pending" | "approved"
     # Every detected box (not just scored products), for full-image overlay + dedup colouring.
     detections: List[Detection] = Field(default_factory=list)
     performance: Optional[PerformanceSummary] = None

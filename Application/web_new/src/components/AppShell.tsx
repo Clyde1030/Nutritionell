@@ -6,14 +6,14 @@ import { TABS, PUBLIC_TABS, type Tab, pathForTab } from '@/lib/tabs';
 import { useAuth } from '@/lib/AuthContext';
 import AuthModal, { type AuthMode } from '@/components/AuthModal';
 import PendingApproval from '@/components/PendingApproval';
-import HomeTab from '@/components/HomeTab';
+import AccountTab from '@/components/AccountTab';
+import OurMissionTab from '@/components/OurMissionTab';
 import ProfileTab from '@/components/ProfileTab';
 import GoalsTab from '@/components/GoalsTab';
 import ScanTab from '@/components/ScanTab';
 import PlanTab from '@/components/PlanTab';
 import GreenwashingTab from '@/components/GreenwashingTab';
 import IngredientAnalyticsTab from '@/components/IngredientAnalyticsTab';
-import AboutTab from '@/components/AboutTab';
 import SettingsTab from '@/components/SettingsTab';
 import AdminTab from '@/components/AdminTab';
 import { NAV_ICONS, NLogoMark } from '@/components/icons/NavIcons';
@@ -24,21 +24,17 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
   const { status, user, logout, sessionExpired, clearSessionExpired } = useAuth();
 
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
 
-  // Auth modal state. `pendingTab` remembers where the person was headed so a
-  // deep link still lands correctly once they're signed in — the alternative
-  // (redirecting to /) would silently lose their intent.
+  // `pendingTab` remembers where the person was headed so a deep link still
+  // lands correctly once they're signed in.
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [pendingTab, setPendingTab] = useState<Tab | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(null);
 
   const isPublic = useCallback((t: Tab) => PUBLIC_TABS.includes(t), []);
-  // Being signed in isn't enough for /admin — an authenticated non-admin must not
-  // see the panel, so this is checked separately from canView().
   const isAdminUser = user?.is_admin === true;
   // 'loading' is not "allowed": rendering a gated tab before the stored token is
   // verified would flash protected UI at someone who may not be signed in.
@@ -47,11 +43,7 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
     [isPublic, status],
   );
 
-  useEffect(() => {
-    setTab(initialTab);
-  }, [initialTab]);
-
-  // Apply the persisted color theme on mount.
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
   useEffect(() => { initTheme(); }, []);
 
   const openAuth = useCallback((mode: AuthMode = 'signin', headedTo: Tab | null = null) => {
@@ -60,9 +52,8 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
     setAuthOpen(true);
   }, []);
 
-  // A reset link lands on `/?reset_token=…` (the param name the backend's email
-  // builds). Open straight into the set-password step, then strip the token from
-  // the URL so it isn't left in history or copied out of the address bar.
+  // A reset link lands on `/?reset_token=…`. Open straight into the set-password
+  // step, then strip the token so it isn't left in history or the address bar.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -76,14 +67,11 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
     params.delete('reset_token');
     const query = params.toString();
     window.history.replaceState(
-      {},
-      '',
+      {}, '',
       window.location.pathname + (query ? `?${query}` : '') + window.location.hash,
     );
   }, []);
 
-  // An expired token surfaces here rather than as a raw fetch error in whichever
-  // tab happened to be making a request.
   useEffect(() => {
     if (sessionExpired) {
       setAuthMode('signin');
@@ -105,12 +93,10 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
   }, [status, tab, canView]);
 
   const handleTabChange = (nextTab: Tab) => {
-    setMenuOpen(false);
     setAccountOpen(false);
 
     if (!canView(nextTab)) {
-      // Pending users are already signed in — showing them a login box would be
-      // nonsense. Route them to the waiting notice instead.
+      // Pending users are already signed in — a login box would be nonsense.
       if (status === 'pending') {
         setTab(nextTab);
         router.push(pathForTab(nextTab), { scroll: false });
@@ -138,133 +124,82 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
   const handleLogout = () => {
     setAccountOpen(false);
     logout();
-    // Drop back to Home, since whatever they were on is now gated.
     if (!isPublic(tab)) {
-      setTab('home');
-      router.push(pathForTab('home'), { scroll: false });
+      setTab('scan');
+      router.push(pathForTab('scan'), { scroll: false });
     }
   };
 
   useEffect(() => {
-    if (!menuOpen && !accountOpen) return;
-
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (!headerRef.current) return;
-      const target = event.target as Node | null;
-      if (target && !headerRef.current.contains(target)) {
-        setMenuOpen(false);
+    if (!accountOpen) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (headerRef.current && target && !headerRef.current.contains(target)) {
         setAccountOpen(false);
       }
     };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMenuOpen(false);
-        setAccountOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleDocumentClick);
-    document.addEventListener('keydown', handleEscape);
-
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAccountOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
     return () => {
-      document.removeEventListener('mousedown', handleDocumentClick);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
     };
-  }, [menuOpen, accountOpen]);
+  }, [accountOpen]);
 
-  /** A gated tab renders its real content only when allowed; otherwise the
-   *  pending notice (signed in, awaiting approval) or nothing at all (signed
-   *  out — the modal is what they see). */
+  /** Only Profile, Goals and My Plan go through this now. */
   const gated = (t: Tab, content: React.ReactNode) => {
     if (canView(t)) return content;
     if (status === 'pending') return <PendingApproval email={user?.email} onLogout={handleLogout} />;
     return <SignedOutNotice onSignIn={() => openAuth('signin', t)} />;
   };
 
-  /** /admin needs auth AND is_admin. A signed-in non-admin gets a plain notice
-   *  rather than a login box — signing in again wouldn't change anything. */
   const adminPanel = () => {
     if (!canView('admin')) return gated('admin', <AdminTab />);
     if (!isAdminUser) return <NotAuthorizedNotice />;
     return <AdminTab />;
   };
 
+  const signedIn = status === 'authenticated' || status === 'pending';
+
   return (
     <div className={styles.shell}>
+      {/* ── Header: logo + wordmark, Sign In pill / account chip ───────────── */}
       <header ref={headerRef} className={styles.header}>
         <button
-          className={`${styles.logo} ${tab === 'home' ? styles.logoActive : ''}`}
-          onClick={() => handleTabChange('home')}
+          className={styles.logo}
+          onClick={() => handleTabChange('scan')}
           aria-label="Nutritionell home"
-          aria-current={tab === 'home' ? 'page' : undefined}
         >
           {/* The original logo mark stays; the pixel N stands in for the
-              wordmark's own capital N, so the two sit side by side rather than
-              one replacing the other. The button keeps
-              aria-label="Nutritionell home", so screen readers still get the
-              whole word despite the N being an image. */}
-          <img src="/logo.png" alt="" className={styles.logoMark} width={26} height={26} />
+              wordmark's own capital N. aria-label carries the whole word. */}
+          <img src="/logo.png" alt="" className={styles.logoMark} width={28} height={28} />
           <span className={styles.wordmark}>
             <NLogoMark className={styles.logoN} />utritionell
           </span>
         </button>
-
-        <button
-          className={`${styles.menuToggle} ${menuOpen ? styles.menuToggleOpen : ''}`}
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={menuOpen}
-          aria-controls="top-nav"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <span className={styles.menuBar} />
-          <span className={styles.menuBar} />
-          <span className={styles.menuBar} />
-        </button>
-
-        <nav id="top-nav" className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`}>
-          {TABS.map((t) => {
-            const TabIcon = NAV_ICONS[t.icon];
-            const locked = !canView(t.key) && status !== 'loading';
-            return (
-              <button
-                key={t.key}
-                className={`${styles.navBtn} ${tab === t.key ? styles.navBtnActive : ''} ${locked ? styles.navBtnLocked : ''}`}
-                aria-current={tab === t.key ? 'page' : undefined}
-                title={locked ? 'Sign in to use this' : undefined}
-                onClick={() => handleTabChange(t.key)}
-              >
-                <span className={styles.navIcon}>
-                  <TabIcon className={styles.navIconSvg} />
-                </span>
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
 
         <div className={styles.account}>
           {status === 'loading' && <span className={styles.accountLoading} aria-hidden="true" />}
 
           {status === 'anonymous' && (
             <button className={styles.loginBtn} onClick={() => openAuth('signin', null)}>
-              Log In
+              Sign In
             </button>
           )}
 
-          {(status === 'authenticated' || status === 'pending') && (
+          {signedIn && (
             <>
               <button
                 className={styles.accountBtn}
                 onClick={() => setAccountOpen((o) => !o)}
                 aria-expanded={accountOpen}
                 aria-haspopup="menu"
-                title={user?.email}
+                aria-label={`Account: ${user?.email ?? ''}`}
               >
                 <span className={styles.accountAvatar} aria-hidden="true">
                   {(user?.email ?? '?').charAt(0).toUpperCase()}
                 </span>
-                <span className={styles.accountEmail}>{user?.email}</span>
               </button>
 
               {accountOpen && (
@@ -273,18 +208,17 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
                   {status === 'pending' && (
                     <div className={styles.accountMenuBadge}>Pending approval</div>
                   )}
-                  {/* Admins only. Deliberately here rather than in the top nav —
-                      see the note in lib/tabs.ts. */}
+                  <button className={styles.accountMenuItem} role="menuitem"
+                          onClick={() => handleTabChange('account')}>
+                    Your account
+                  </button>
                   {isAdminUser && (
-                    <button
-                      className={styles.accountMenuItem}
-                      onClick={() => handleTabChange('admin')}
-                      role="menuitem"
-                    >
+                    <button className={styles.accountMenuItem} role="menuitem"
+                            onClick={() => handleTabChange('admin')}>
                       Admin
                     </button>
                   )}
-                  <button className={styles.accountMenuItem} onClick={handleLogout} role="menuitem">
+                  <button className={styles.accountMenuItem} role="menuitem" onClick={handleLogout}>
                     Log out
                   </button>
                 </div>
@@ -295,50 +229,80 @@ export default function AppShell({ initialTab }: { initialTab: Tab }) {
       </header>
 
       <main className={styles.main}>
-        <section className={styles.tabPanel} hidden={tab !== 'home'} aria-hidden={tab !== 'home'}>
-          <HomeTab
+        <section className={styles.tabPanel} hidden={tab !== 'scan'} aria-hidden={tab !== 'scan'}>
+          <ScanTab onSignIn={() => openAuth('signin', null)}
+                   onNavigate={(t) => handleTabChange(t as Tab)} />
+        </section>
+        <section className={styles.tabPanel} hidden={tab !== 'claim-check'} aria-hidden={tab !== 'claim-check'}>
+          <GreenwashingTab onNavigate={(t) => handleTabChange(t as Tab)} />
+        </section>
+        <section className={styles.tabPanel} hidden={tab !== 'analytics'} aria-hidden={tab !== 'analytics'}>
+          <IngredientAnalyticsTab />
+        </section>
+        <section className={styles.tabPanel} hidden={tab !== 'our-mission'} aria-hidden={tab !== 'our-mission'}>
+          <OurMissionTab
             onNavigate={(t) => handleTabChange(t as Tab)}
-            onGetStarted={() => openAuth('signup', 'profile')}
+            onGetStarted={() => openAuth('signup', 'account')}
           />
         </section>
+        <section className={styles.tabPanel} hidden={tab !== 'settings'} aria-hidden={tab !== 'settings'}>
+          <SettingsTab />
+        </section>
+        <section className={styles.tabPanel} hidden={tab !== 'account'} aria-hidden={tab !== 'account'}>
+          <AccountTab
+            onNavigate={(t) => handleTabChange(t)}
+            onSignIn={() => openAuth('signin', null)}
+            onCreateAccount={() => openAuth('signup', null)}
+          />
+        </section>
+
+        {/* Gated: reached from the account tab, not the nav. */}
         <section className={styles.tabPanel} hidden={tab !== 'profile'} aria-hidden={tab !== 'profile'}>
           {gated('profile', <ProfileTab />)}
         </section>
         <section className={styles.tabPanel} hidden={tab !== 'goals'} aria-hidden={tab !== 'goals'}>
           {gated('goals', <GoalsTab />)}
         </section>
-        <section className={styles.tabPanel} hidden={tab !== 'scan'} aria-hidden={tab !== 'scan'}>
-          {gated('scan', <ScanTab />)}
-        </section>
         <section className={styles.tabPanel} hidden={tab !== 'plan'} aria-hidden={tab !== 'plan'}>
           {gated('plan', <PlanTab />)}
-        </section>
-        <section className={styles.tabPanel} hidden={tab !== 'greenwashing'} aria-hidden={tab !== 'greenwashing'}>
-          {gated('greenwashing', <GreenwashingTab />)}
-        </section>
-        <section className={styles.tabPanel} hidden={tab !== 'ingredients'} aria-hidden={tab !== 'ingredients'}>
-          {gated('ingredients', <IngredientAnalyticsTab />)}
-        </section>
-        <section className={styles.tabPanel} hidden={tab !== 'about'} aria-hidden={tab !== 'about'}>
-          <AboutTab />
-        </section>
-        <section className={styles.tabPanel} hidden={tab !== 'settings'} aria-hidden={tab !== 'settings'}>
-          {gated('settings', <SettingsTab />)}
         </section>
         <section className={styles.tabPanel} hidden={tab !== 'admin'} aria-hidden={tab !== 'admin'}>
           {tab === 'admin' && adminPanel()}
         </section>
       </main>
 
+      {/* ── Bottom tab bar ─────────────────────────────────────────────────────
+          A bottom bar rather than a hamburger drawer: the app is used only on a
+          phone, six items fit at 390px, and a drawer would hide the whole nav
+          behind a tap on every screen. Keeps the filled-icon-chip treatment —
+          the chip fills with the accent on the active tab, same as before. */}
+      <nav className={styles.tabBar} aria-label="Main">
+        {TABS.map((t) => {
+          const Icon = NAV_ICONS[t.icon];
+          const active = tab === t.key
+            // The account sub-screens keep the account tab lit, so you can always
+            // see where you are.
+            || (t.key === 'account' && (tab === 'profile' || tab === 'goals' || tab === 'plan' || tab === 'admin'));
+          const label = t.key === 'account' && signedIn ? 'Account' : t.label;
+          return (
+            <button
+              key={t.key}
+              className={`${styles.tabBarBtn} ${active ? styles.tabBarBtnActive : ''}`}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => handleTabChange(t.key)}
+            >
+              <span className={styles.navIcon}><Icon className={styles.navIconSvg} /></span>
+              <span className={styles.tabBarLabel}>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
       <AuthModal
         open={authOpen}
         initialMode={authMode}
         resetToken={authMode === 'reset' ? resetToken : null}
-        onClose={() => {
-          setAuthOpen(false);
-          setResetToken(null);
-          clearSessionExpired();
-        }}
+        onClose={() => { setAuthOpen(false); setResetToken(null); clearSessionExpired(); }}
         onAuthenticated={handleAuthenticated}
       />
     </div>
@@ -358,10 +322,8 @@ function SignedOutNotice({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className={styles.gateNotice}>
       <h2>Sign in to continue</h2>
-      <p>This part of Nutritionell needs an account. Home and Contact Us stay open to everyone.</p>
-      <button className={styles.gateBtn} onClick={onSignIn}>
-        Sign in or create an account
-      </button>
+      <p>Profile, Goals and My Plan need an account. Everything else works without one.</p>
+      <button className={styles.gateBtn} onClick={onSignIn}>Sign in or create an account</button>
     </div>
   );
 }

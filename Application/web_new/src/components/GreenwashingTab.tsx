@@ -4,6 +4,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, 
 import GreenwashingTransparency from './GreenwashingTransparency';
 import { useChartColors } from '@/lib/chartColors';
 import s from './GreenwashingTab.module.css';
+import {
+  DropZone, HowItWorksCard, LandingHero, LeafGlyph, PrimaryCta, WhatToKnowCard,
+  landingStyles as L,
+} from '@/components/landing/Landing';
 
 interface ClaimVerdict {
   claim: string;
@@ -41,7 +45,7 @@ const CLAIM_STYLES: Record<ClaimVerdict['verdict'], { label: string; bg: string;
 
 type View = 'upload' | 'analyzing' | 'results';
 
-export default function GreenwashingTab() {
+export default function GreenwashingTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const [view, setView] = useState<View>('upload');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<GreenwashResult | null>(null);
@@ -117,7 +121,7 @@ export default function GreenwashingTab() {
     return (
       <div className={s.page}>
         <div className={s.header}>
-          <h1 className={s.title}>Greenwashing Analysis</h1>
+          <h1 className={s.title}>Claim Check</h1>
           <p className={s.sub}>{result.product_name}</p>
         </div>
 
@@ -255,14 +259,18 @@ export default function GreenwashingTab() {
     );
   }
 
+  // ── Landing (public) ──────────────────────────────────────────────────────
+  // Same header, ledge and bottle/can framing as Scan, on purpose: the two tabs
+  // should read as one family. Only the glyph and the copy differ.
   return (
-    <div className={s.page}>
-      <div className={s.header}>
-        <h1 className={s.title}>Greenwashing Detection</h1>
-        <p className={s.sub}>
-          Upload a photo of a single product&apos;s front label. The AI reads its marketing claims and checks them against the product&apos;s actual ingredients and nutrition.
-        </p>
-      </div>
+    <div className={L.wrap}>
+      <LandingHero
+        glyph={<LeafGlyph />}
+        headline="Claim Check"
+        subhead="Photograph the front of one product. See if its claims match what's actually inside."
+        onHowItWorks={() => document.getElementById('cc-how')?.scrollIntoView({ behavior: 'smooth' })}
+        onWhatToKnow={() => document.getElementById('cc-know')?.scrollIntoView({ behavior: 'smooth' })}
+      />
 
       {errorMsg && (
         <div className={s.errorBanner}>
@@ -271,21 +279,40 @@ export default function GreenwashingTab() {
         </div>
       )}
 
-      <div className={s.singleItemNote}>
-        📸 <strong>One product at a time.</strong> This check sends a single item straight to the AI — no shelf scanning — so frame just one product&apos;s front label for the most accurate read.
-      </div>
-
-      <div
-        className={s.uploadZone}
+      <DropZone
+        title="Drop a product photo here or tap to upload"
+        caption="Front of package only · JPEG, PNG, WebP, or iPhone photo"
         onClick={() => fileRef.current?.click()}
         onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0] ?? null); }}
-        onDragOver={e => e.preventDefault()}
-      >
-        <div className={s.uploadIcon}>🔍</div>
-        <p className={s.uploadTitle}>Drop a single product image or click to upload</p>
-        <p className={s.uploadSub}>Show the front of one product with its marketing claims like &quot;All Natural&quot;, &quot;Keto&quot;, or &quot;No Added Sugar&quot;</p>
-        <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput} onChange={e => handleFile(e.target.files?.[0] ?? null)} />
-      </div>
+      />
+      <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className={s.fileInput}
+             onChange={e => handleFile(e.target.files?.[0] ?? null)} />
+
+      <PrimaryCta label="Check a Product" onClick={() => fileRef.current?.click()} />
+
+      <p className={L.ctaCaption}>
+        One product per check · Scanning a whole shelf?{' '}
+        <button onClick={() => onNavigate('scan')}>Use Scan</button>
+      </p>
+
+      <HowItWorksCard
+        id="cc-how"
+        steps={[
+          { title: 'Photograph a product', detail: 'Get a clear shot of the front of the package.' },
+          { title: 'We read its claims', detail: 'Marketing claims and label text are extracted.' },
+          { title: 'We check the facts', detail: 'Nutrition data is compared against what\u2019s claimed.' },
+          { title: 'See the verdict', detail: 'A clear read on which claims hold up — and which don\u2019t.' },
+        ]}
+      />
+
+      <WhatToKnowCard
+        id="cc-know"
+        sections={[
+          { label: 'Privacy', body: 'We don\u2019t blur faces yet, so try to avoid people in frame. We never store your images.' },
+          { label: 'One product at a time', body: 'Claim Check works on a single product\u2019s front-of-package claims against its real nutrition facts. Scanning a whole shelf? Use Scan instead.' },
+          { label: 'AI-generated checks', body: 'Claim-checking is generated by AI and may miss nuance — always check the full nutrition label yourself for the final word.' },
+        ]}
+      />
 
       {/* Transparency + privacy */}
       <button className={s.transparencyBtn} onClick={() => setShowTransparency(true)}>

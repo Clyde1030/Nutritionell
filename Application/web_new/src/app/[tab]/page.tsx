@@ -6,7 +6,12 @@ type PageProps = {
   params: { tab: string };
 };
 
-const VALID_TABS = new Set(['profile', 'goals', 'scan', 'plan', 'greenwashing', 'ingredients', 'about', 'settings', 'admin']);
+// Every route except '/' (which app/page.tsx serves as Scan). Derived from the
+// tab map so adding a route in one place is enough.
+const VALID_TABS = new Set<string>([
+  'claim-check', 'analytics', 'our-mission', 'settings', 'account',
+  'profile', 'goals', 'plan', 'admin',
+]);
 
 export default function TabPage({ params }: PageProps) {
   const tab = tabFromPath(`/${params.tab}`);

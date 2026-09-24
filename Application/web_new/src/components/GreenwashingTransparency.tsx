@@ -5,7 +5,7 @@ interface Props { onClose: () => void; }
 
 // Kept in sync by hand with the PROMPT constant in
 // src/app/api/greenwashing/route.ts — this is the literal instruction sent to
-// Gemini for every Greenwashing check. If that prompt changes, update this too.
+// Gemini for every Claim Check run. If that prompt changes, update this too.
 const LIVE_PROMPT = `You are a deterministic food-marketing honesty analyst.
 
 You are given one photo. It should show ONE grocery product's front-of-pack label (and possibly its ingredients / nutrition panel).
@@ -97,7 +97,7 @@ export default function GreenwashingTransparency({ onClose }: Props) {
         <button className={s.transparencyClose} onClick={onClose} aria-label="Close">✕</button>
         <h2 className={s.transparencyTitle}>Transparency Overview</h2>
         <p className={s.transparencySub}>
-          Exactly what happens when you run a Greenwashing check, and what is sent to the AI.
+          Exactly what happens when you run a Claim Check, and what is sent to the AI.
         </p>
 
         <p className={s.transparencyLabel}>The pipeline</p>

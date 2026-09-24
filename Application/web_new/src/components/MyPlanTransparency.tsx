@@ -42,7 +42,7 @@ const STAGES = [
   {
     n: '2',
     title: 'One Gemini call generates the whole plan',
-    body: 'Everything is sent in a single prompt to Gemini, which returns a structured plan: a summary, daily nutrient targets, this week’s focus areas, 8-12 action steps (each with a priority), foods to emphasise/limit, optional supplements, and lifestyle notes. There is no separate scoring or identification step — this is a one-shot generation, not a per-product evaluation like Scan or Greenwashing.',
+    body: 'Everything is sent in a single prompt to Gemini, which returns a structured plan: a summary, daily nutrient targets, this week’s focus areas, 8-12 action steps (each with a priority), foods to emphasise/limit, optional supplements, and lifestyle notes. There is no separate scoring or identification step — this is a one-shot generation, not a per-product evaluation like Scan or Claim Check.',
   },
   {
     n: '3',

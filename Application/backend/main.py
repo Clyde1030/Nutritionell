@@ -52,6 +52,11 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    # Any localhost port, so a dev server on an alternate port (3001, 3002, …)
+    # isn't blocked. Scoped to localhost, so it only ever matches on a
+    # developer's own machine — CORS isn't the security boundary here anyway,
+    # the bearer token is.
+    allow_origin_regex=r"http://localhost:\d+",
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )

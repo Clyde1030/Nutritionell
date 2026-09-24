@@ -171,35 +171,81 @@ async def test_analyze_returns_products(client, db_engine):
 
 
 @pytest.mark.asyncio
-async def test_analyze_without_token_is_401(client):
-    """The core of the lockdown: no token, no analysis."""
-    tiny_jpeg = b'\xff\xd8\xff\xd9'  # minimal JPEG
-    r = await client.post(
-        "/api/analyze",
-        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-    )
-    assert r.status_code == 401
+async def test_analyze_anonymous_succeeds_without_scoring(client):
+    """Scan is public. No token means nutrition facts but no fit judgement."""
+    mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
+    with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
+         patch("app.services.gemini_service.yolo_service.detect", return_value=[]):
+        r = await client.post(
+            "/api/analyze",
+            files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
+        )
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["scored"] is False
+    assert data["auth_state"] == "anonymous"
+    # Identified, but deliberately not judged.
+    for product in data["products"]:
+        assert product["scoring"] in ("Not Scored", "Unidentified")
 
 
 @pytest.mark.asyncio
-async def test_analyze_stream_without_token_is_401(client):
-    tiny_jpeg = b'\xff\xd8\xff\xd9'
-    r = await client.post(
-        "/api/analyze/stream",
-        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-    )
-    assert r.status_code == 401
+async def test_analyze_with_invalid_token_is_treated_as_anonymous(client):
+    """A dead token on a public endpoint means 'anonymous', not 'rejected' —
+    otherwise an expired session would break a page that needs no account."""
+    mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
+    with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
+         patch("app.services.gemini_service.yolo_service.detect", return_value=[]):
+        r = await client.post(
+            "/api/analyze",
+            headers={"Authorization": "Bearer not.a.jwt"},
+            files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
+        )
+    assert r.status_code == 200
+    assert r.json()["auth_state"] == "anonymous"
 
 
 @pytest.mark.asyncio
-async def test_analyze_with_invalid_token_is_401(client):
-    tiny_jpeg = b'\xff\xd8\xff\xd9'
-    r = await client.post(
-        "/api/analyze",
-        headers={"Authorization": "Bearer not.a.jwt"},
-        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-    )
-    assert r.status_code == 401
+async def test_analyze_pending_user_gets_unscored_results_and_a_flag(client):
+    """A signed-in but unapproved account gets the same data as anonymous, plus
+    the flag the frontend keys its 'awaiting approval' notice off."""
+    from tests.conftest import signup
+
+    pending = await signup(client, "waiting@example.com")
+    headers = {"Authorization": f"Bearer {pending['access_token']}"}
+
+    mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
+    with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
+         patch("app.services.gemini_service.yolo_service.detect", return_value=[]):
+        r = await client.post(
+            "/api/analyze",
+            headers=headers,
+            files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
+        )
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["scored"] is False
+    assert data["auth_state"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_analyze_approved_user_is_scored(client, db_engine):
+    account = await _account_with_profile(client, db_engine)
+    mock_client = _make_mock_client(MOCK_VISION_RESPONSE, MOCK_SCORING_RESPONSE)
+    with patch("app.services.gemini_service.GeminiService.client", new_callable=lambda: property(lambda self: mock_client)), \
+         patch("app.services.gemini_service.yolo_service.detect", return_value=[]):
+        r = await client.post(
+            "/api/analyze",
+            headers=account["headers"],
+            files={"image": ("shelf.jpg", _make_test_jpeg(100, 100), "image/jpeg")},
+        )
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["scored"] is True
+    assert data["auth_state"] == "approved"
 
 
 @pytest.mark.asyncio
@@ -226,12 +272,15 @@ async def test_analyze_ignores_a_supplied_profile_id(client, db_engine):
 
 @pytest.mark.asyncio
 async def test_mock_analyze_matches_the_real_contract(client, account):
-    """USE_MOCK_ANALYZE must not be a way to bypass auth locally."""
+    """USE_MOCK_ANALYZE must exercise the same caller states as the real route,
+    or flipping that flag locally would test a different contract."""
     tiny_jpeg = b'\xff\xd8\xff\xd9'
-    unauth = await client.post(
+    anon = await client.post(
         "/api/analyze/mock", files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")}
     )
-    assert unauth.status_code == 401
+    assert anon.status_code == 200
+    assert anon.json()["scored"] is False
+    assert anon.json()["auth_state"] == "anonymous"
 
     authed = await client.post(
         "/api/analyze/mock",
@@ -239,6 +288,7 @@ async def test_mock_analyze_matches_the_real_contract(client, account):
         files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
     )
     assert authed.status_code == 200
+    assert authed.json()["scored"] is True
 
 
 @pytest.mark.asyncio

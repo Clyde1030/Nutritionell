@@ -120,5 +120,5 @@
 
 @media (min-width: 600px) {
   .transparencyOverlay { align-items: center; }
-  .transparencyPanel { border-radius: 20px; }
+  .transparencyPanel { border-radius: var(--radius); }
 }

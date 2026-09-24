@@ -15,7 +15,9 @@ export const PALETTES: Palette[] = [
   {
     name: 'Avocado', mode: 'light',
     vars: {
-      '--accent': 'oklch(42% 0.15 155)', '--accent-glow': 'oklch(42% 0.15 155 / 0.1)',
+      '--accent': 'oklch(42% 0.15 155)', '--accent-glow': 'oklch(42% 0.15 155 / 0.12)',
+      '--accent-glow2': 'oklch(42% 0.15 155 / 0.22)',
+      '--accent-strong': 'oklch(30% 0.11 155)',
       '--bg': 'oklch(98% 0.006 80)', '--card': 'oklch(100% 0 0)',
       '--surface': 'oklch(96% 0.01 80)', '--border': 'oklch(92% 0.008 80)',
       '--text': 'oklch(24% 0.02 80)', '--sub': 'oklch(48% 0.015 80)',
@@ -23,15 +25,22 @@ export const PALETTES: Palette[] = [
       '--green': 'oklch(56% 0.15 150)', '--green-bg': 'oklch(93% 0.045 150)',
       '--red': 'oklch(55% 0.18 25)', '--red-bg': 'oklch(55% 0.18 25 / 0.06)',
       '--yellow': 'oklch(55% 0.14 85)', '--yellow-bg': 'oklch(55% 0.14 85 / 0.07)',
-      '--radius': '20px', '--radius-btn': '999px', '--radius-nav': '999px',
+      // Unscored (anonymous / pending) scan results. Deliberately off-accent and
+      // off-traffic-light so an unscored product never reads as a judgement.
+      '--neutral-bg': 'oklch(95% 0.004 260)', '--neutral-text': 'oklch(40% 0.01 260)',
+      '--neutral-border': 'oklch(88% 0.006 260)',
+      '--flag-bg': 'oklch(93% 0.02 60)', '--flag-text': 'oklch(42% 0.03 55)',
+      '--radius': '26px', '--radius-btn': '999px', '--radius-nav': '999px',
       '--shadow': '0 10px 26px oklch(40% 0.03 80 / 0.08)',
-      '--f-display': "'Fredoka', sans-serif", '--f-body': "'Karla', sans-serif",
+      '--f-display': "'Baloo 2', sans-serif", '--f-body': "'Inter', sans-serif",
     },
   },
   {
     name: 'Eggplant', mode: 'light',
     vars: {
       '--accent': 'oklch(42% 0.15 322)', '--accent-glow': 'oklch(42% 0.15 322 / 0.1)',
+      '--accent-glow2': 'oklch(42% 0.15 322 / 0.22)',
+      '--accent-strong': 'oklch(30% 0.11 322)',
       '--bg': 'oklch(98% 0.006 80)', '--card': 'oklch(100% 0 0)',
       '--surface': 'oklch(96% 0.01 80)', '--border': 'oklch(92% 0.008 80)',
       '--text': 'oklch(24% 0.02 80)', '--sub': 'oklch(48% 0.015 80)',
@@ -39,6 +48,10 @@ export const PALETTES: Palette[] = [
       '--green': 'oklch(56% 0.15 150)', '--green-bg': 'oklch(93% 0.045 150)',
       '--red': 'oklch(55% 0.18 25)', '--red-bg': 'oklch(55% 0.18 25 / 0.06)',
       '--yellow': 'oklch(55% 0.14 85)', '--yellow-bg': 'oklch(55% 0.14 85 / 0.07)',
+      // Unscored results — hue-neutral, so these match Avocado's exactly.
+      '--neutral-bg': 'oklch(95% 0.004 260)', '--neutral-text': 'oklch(40% 0.01 260)',
+      '--neutral-border': 'oklch(88% 0.006 260)',
+      '--flag-bg': 'oklch(93% 0.02 60)', '--flag-text': 'oklch(42% 0.03 55)',
       '--radius': '20px', '--radius-btn': '999px', '--radius-nav': '999px',
       '--shadow': '0 10px 26px oklch(40% 0.03 80 / 0.08)',
       '--f-display': "'Fredoka', sans-serif", '--f-body': "'Karla', sans-serif",
@@ -53,9 +66,15 @@ export const PALETTES: Palette[] = [
       '--text': 'oklch(96% 0.003 260)', '--sub': 'oklch(70% 0.015 260)',
       '--accent': 'oklch(85% 0.19 135)', '--accent-ink': 'oklch(15% 0.02 260)',
       '--accent-glow': 'oklch(85% 0.19 135 / 0.14)',
+      '--accent-glow2': 'oklch(85% 0.19 135 / 0.26)',
+      '--accent-strong': 'oklch(92% 0.16 135)',
       '--green': 'oklch(75% 0.18 150)', '--green-bg': 'oklch(75% 0.18 150 / 0.16)',
       '--red': 'oklch(68% 0.19 25)', '--red-bg': 'oklch(68% 0.19 25 / 0.12)',
       '--yellow': 'oklch(80% 0.15 85)', '--yellow-bg': 'oklch(80% 0.15 85 / 0.12)',
+      // Unscored results, inverted for the dark surface.
+      '--neutral-bg': 'oklch(28% 0.015 260)', '--neutral-text': 'oklch(85% 0.01 260)',
+      '--neutral-border': 'oklch(36% 0.018 260)',
+      '--flag-bg': 'oklch(36% 0.04 60)', '--flag-text': 'oklch(88% 0.05 70)',
       '--radius': '12px', '--radius-btn': '10px', '--radius-nav': '8px',
       '--shadow': 'none',
       '--f-display': "'Space Grotesk', sans-serif", '--f-body': "'Work Sans', sans-serif",

@@ -200,3 +200,29 @@ async def get_current_admin_user(
             detail="Admin access required",
         )
     return current_user
+
+
+# ── Optional auth (public endpoints that still personalise when signed in) ────
+
+async def get_optional_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """Resolve the caller if they sent a usable token, else None.
+
+    Never raises. A missing, malformed, expired or orphaned token all mean the
+    same thing to a public endpoint: treat this as an anonymous caller rather
+    than refusing the request. Endpoints that must have a user keep using
+    get_current_user / get_current_approved_user.
+    """
+    header = request.headers.get("Authorization") or ""
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+
+    user_id = decode_access_token(token.strip())
+    if not user_id:
+        return None
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()

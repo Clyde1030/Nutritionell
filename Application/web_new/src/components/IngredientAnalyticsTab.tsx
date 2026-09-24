@@ -6,6 +6,11 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts';
 import s from './IngredientAnalyticsTab.module.css';
+import AnalyticsNodes from '@/components/landing/AnalyticsNodes';
+import {
+  HowItWorksCard, LandingHero, SearchGlyph, WhatToKnowCard,
+  landingStyles as L,
+} from '@/components/landing/Landing';
 import { INGREDIENT_DIRECTORY } from '@/lib/concern-scoring';
 import { useChartColors } from '@/lib/chartColors';
 
@@ -346,8 +351,11 @@ export default function IngredientAnalyticsTab() {
         )}
 
         {/* ── Nutrient Profile ── */}
+        {/* Was a two-column list + RadarChart. A 6-axis radar is unreadable at
+            390px, so the nutrient bar list carries it alone now — a deliberate
+            simplification, not an oversight. */}
         {np && np.sample_size > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>
                 Average Nutrient Profile
@@ -445,8 +453,9 @@ export default function IngredientAnalyticsTab() {
             )}
 
             {/* Categories View */}
+            {/* Donut above, legend stacked beneath, rather than side by side. */}
             {cooccurView === 'categories' && cats.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
@@ -473,14 +482,14 @@ export default function IngredientAnalyticsTab() {
             {/* Products View */}
             {cooccurView === 'products' && prods.length > 0 && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, padding: '8px 0', borderBottom: '2px solid var(--border)', marginBottom: 4 }}>
+                <div style={{ display: 'none' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sub)', textTransform: 'uppercase' }}>Product</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sub)', textTransform: 'uppercase' }}>Brand</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sub)', textTransform: 'uppercase' }}>Category</span>
                 </div>
                 <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                   {prods.map((p, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', marginBottom: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14 }}>
                       <span style={{ fontSize: 12, color: 'var(--text)' }}>{p.name}</span>
                       <span style={{ fontSize: 12, color: 'var(--sub)' }}>{p.brand}</span>
                       <span style={{ fontSize: 11, color: 'var(--sub)' }}>{p.category}</span>
@@ -530,23 +539,63 @@ export default function IngredientAnalyticsTab() {
   const pagedIngredients = filteredIngredients.slice(dirPage * DIR_PAGE_SIZE, (dirPage + 1) * DIR_PAGE_SIZE);
   const totalPages = Math.ceil(filteredIngredients.length / DIR_PAGE_SIZE);
 
+  // ── Landing (public) ──────────────────────────────────────────────────────
+  // Same family as Scan/Claim Check — shared tile, headline scale and info cards
+  // — but a node cluster instead of a shelf ledge, and a search field instead of
+  // a drop zone: nothing is photographed or shelved on this tab.
   return (
-    <div className={s.page}>
-      <div className={s.header}>
-        <h1 className={s.title}>Nutrition Analytics</h1>
-        <p className={s.sub}>
-          Research any food ingredient — get its safety profile, FDA status, biological impact, and discover what other processed ingredients commonly appear alongside it.
-        </p>
+    <div className={L.wrap}>
+      <LandingHero
+        glyph={<SearchGlyph />}
+        headline="Ingredient Analytics"
+        subhead="Search any ingredient for its safety profile, regulatory status, and what it's commonly found with."
+        framing="bare"
+        onHowItWorks={() => document.getElementById('ia-how')?.scrollIntoView({ behavior: 'smooth' })}
+        onWhatToKnow={() => document.getElementById('ia-know')?.scrollIntoView({ behavior: 'smooth' })}
+      >
+        <AnalyticsNodes glyph={<SearchGlyph />} />
+      </LandingHero>
+
+      <div className={L.searchCard}>
+        <div className={L.searchRow}>
+          <span className={L.searchIcon} aria-hidden="true"><SearchGlyph /></span>
+          <input
+            className={L.searchField}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            placeholder='Search an ingredient (e.g. "Red 40")'
+            aria-label="Search an ingredient"
+          />
+          <button className={L.searchGo} onClick={() => search()}>Search</button>
+        </div>
       </div>
-      <div className={s.searchWrap}>
-        <input className={s.searchInput} value={query} onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()} placeholder='Search an ingredient (e.g. "Red 40", "Carrageenan")' />
-        <button className={s.searchBtn} onClick={() => search()}>Search</button>
+
+      <p className={L.sectionLabel}>Popular searches</p>
+      <div className={L.chipRow}>
+        {QUICK_SEARCHES.map(q => (
+          <button key={q} className={L.chip} onClick={() => search(q)}>{q}</button>
+        ))}
       </div>
-      <p style={{ fontSize: 13, color: 'var(--sub)', marginBottom: 10 }}>Popular searches</p>
-      <div className={s.quickChips}>
-        {QUICK_SEARCHES.map(q => <button key={q} className={s.chip} onClick={() => search(q)}>{q}</button>)}
-      </div>
+
+      <HowItWorksCard
+        id="ia-how"
+        steps={[
+          { title: 'Search an ingredient', detail: 'Type a name, or tap one from the directory below.' },
+          { title: 'We pull the records', detail: 'IARC, EFSA/FDA, CSPI, NOVA and ADI data for that ingredient.' },
+          { title: 'A composite score', detail: 'Three weighted tiers combine into one concern score, shown with its working.' },
+          { title: 'See what it travels with', detail: 'The ingredients, categories and products it most often appears alongside.' },
+        ]}
+      />
+
+      <WhatToKnowCard
+        id="ia-know"
+        sections={[
+          { label: 'Where the data comes from', body: 'IARC Monographs (WHO), EFSA/FDA regulatory records, the EU "Southampton Six", JECFA/EFSA ADI limits, CSPI Chemical Cuisine, and the NOVA classification.' },
+          { label: 'Scores are not verdicts', body: 'A composite score summarises what authoritative bodies have published — it is not a medical judgement, and an ingredient with limited data scores as unknown rather than safe.' },
+          { label: 'Co-occurrence is observational', body: 'What an ingredient commonly appears with is drawn from USDA product records. It describes the market, not causation.' },
+        ]}
+      />
 
       {/* ── Ingredient Directory ── */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20, marginTop: 24 }}>
@@ -602,7 +651,9 @@ export default function IngredientAnalyticsTab() {
         </p>
 
         {/* Ingredient grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
+        {/* Single column: the desktop auto-fill grid put two 220px cells side by
+            side, which truncates every name at 390px. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {pagedIngredients.map((ing, i) => (
             <button key={i} onClick={() => search(ing.name)} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',

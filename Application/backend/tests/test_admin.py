@@ -55,16 +55,18 @@ async def test_pending_user_blocked_across_protected_routes(
 
 
 @pytest.mark.asyncio
-async def test_pending_user_blocked_from_analyze(client, pending_account):
+async def test_pending_user_can_scan_but_is_not_scored(client, pending_account):
+    """Scan is public now, so the gate no longer blocks it — it downgrades it.
+    A pending user gets nutrition facts and a flag, not a 403."""
     tiny_jpeg = b"\xff\xd8\xff\xd9"
-    for path in ("/api/analyze", "/api/analyze/stream", "/api/analyze/mock"):
-        r = await client.post(
-            path,
-            headers=pending_account["headers"],
-            files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
-        )
-        assert r.status_code == 403, path
-        assert r.json()["detail"] == "pending_approval", path
+    r = await client.post(
+        "/api/analyze/mock",
+        headers=pending_account["headers"],
+        files={"image": ("shelf.jpg", tiny_jpeg, "image/jpeg")},
+    )
+    assert r.status_code == 200
+    assert r.json()["scored"] is False
+    assert r.json()["auth_state"] == "pending"
 
 
 # ── Login and /me keep working while pending ─────────────────────────────────
