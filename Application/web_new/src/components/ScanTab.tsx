@@ -8,36 +8,14 @@ import {
   landingStyles as L,
 } from '@/components/landing/Landing';
 import type { PerformanceSummary, ProductItem, ScoreEnum, ShelfAnalysisResponse } from '@/lib/types';
-import { NOVA_COLORS, NOVA_LABELS, SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
+import { SCORE_BG, SCORE_COLORS, SCORE_LABELS, SCORE_DESCRIPTIONS, STAGE_COLORS } from '@/lib/types';
+import ScanResults from '@/components/scan/ScanResults';
 import CameraCapture from './CameraCapture';
 import TransparencyOverview from './TransparencyOverview';
 import s from './ScanTab.module.css';
 import a from './AnonymousResults.module.css';
 
-interface Alternative {
-  brand: string;
-  product_name: string;
-  reason: string;
-  better_because: string;
-  macros: { calories: number; protein_g: number; fat_g: number; carbs_g: number; sugar_g: number };
-}
-
-// Cache alternatives per product so reopening a detail panel doesn't refetch from Gemini.
-const altCache = new Map<string, { alternatives?: Alternative[]; error?: string }>();
-
 type View = 'picker' | 'analyzing' | 'results';
-
-// Sort/filter of the results list.
-type ResultFilter = 'all' | ScoreEnum;
-type ResultSort = 'best' | 'worst' | 'az';
-const SCORE_RANK: Record<ScoreEnum, number> = {
-  'Great Fit': 4, 'Just OK Fit': 3, 'Neutral Fit': 2, "Doesn't Fit": 1, 'Unidentified': 0,
-  // Unused in practice: this sort only runs on the scored results view.
-  'Not Scored': 0,
-};
-const SORT_LABELS: Record<ResultSort, string> = {
-  best: 'Best fit first', worst: 'Worst fit first', az: 'Name (A–Z)',
-};
 
 type Stage =
   | 'idle' | 'uploading' | 'detecting' | 'detected' | 'identifying'
@@ -92,21 +70,6 @@ function fmtEta(ms?: number): string {
   return ` · ~${fmtMs(ms)} left`;
 }
 
-// Final box list: every detection coloured by its mapped product's score
-// (unique→own, duplicate→twin, unidentified→gray). Falls back to one box per product.
-function finalBoxes(result: ShelfAnalysisResponse): { bbox: number[]; color: string; badge: string; product: ProductItem | null }[] {
-  const products = result.products;
-  const dets = result.detections && result.detections.length ? result.detections : null;
-  if (dets) {
-    return dets.map(d => {
-      const p = (d.product_index != null && products[d.product_index]) ? products[d.product_index] : null;
-      const color = p ? SCORE_COLORS[p.scoring] : SCORE_COLORS['Unidentified'];
-      return { bbox: d.bounding_box, color, badge: p ? p.scoring[0] : 'U', product: p };
-    });
-  }
-  return products.map(p => ({ bbox: p.bounding_box, color: SCORE_COLORS[p.scoring], badge: p.scoring[0], product: p }));
-}
-
 export default function ScanTab({
   onSignIn,
   onNavigate,
@@ -118,8 +81,9 @@ export default function ScanTab({
   const [view, setView] = useState<View>('picker');
   const [imageUrl, setImageUrl] = useState('');
   const [result, setResult] = useState<ShelfAnalysisResponse | null>(null);
-  const [selected, setSelected] = useState<ProductItem | null>(null);
-  const [imgEl, setImgEl] = useState<{ width: number; height: number } | null>(null);
+  // Set by tapping a card in the live analyzing view; the results screen opens
+  // on that product once the scan completes.
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showTransparency, setShowTransparency] = useState(false);
@@ -127,8 +91,6 @@ export default function ScanTab({
   const [prog, setProg] = useState<ScanProgress>(EMPTY_PROG);
   const [liveProducts, setLiveProducts] = useState<LiveProduct[]>([]);
   const [now, setNow] = useState(0);
-  const [resFilter, setResFilter] = useState<ResultFilter>('all');
-  const [resSort, setResSort] = useState<ResultSort>('best');
 
   // Live elapsed-time ticker for the active stage (only runs while analyzing).
   useEffect(() => {
@@ -209,7 +171,7 @@ export default function ScanTab({
   const analyze = async (file: File) => {
     setView('analyzing');
     setResult(null);
-    setSelected(null);
+    setSelectedIndex(null);
     setLiveProducts([]);
     setProg({ ...EMPTY_PROG, stage: 'uploading', stageStart: Date.now() });
     const url = URL.createObjectURL(file);
@@ -343,7 +305,6 @@ export default function ScanTab({
         <div className={s.imageWrap}>
           <img
             src={imageUrl} alt="Scanning shelf" className={s.resultImg}
-            onLoad={e => setImgEl({ width: e.currentTarget.offsetWidth, height: e.currentTarget.offsetHeight })}
           />
           {boxes.map((b, i) => {
             if (!b) return null;
@@ -394,7 +355,7 @@ export default function ScanTab({
                 <LiveProductCard
                   key={lp.product_index}
                   lp={lp}
-                  onPress={() => lp.product && setSelected(lp.product)}
+                  onPress={() => lp.product && setSelectedIndex(lp.product_index)}
                 />
               ))}
             </div>
@@ -404,131 +365,45 @@ export default function ScanTab({
     );
   }
 
-  // Unscored payload (anonymous, or signed in but awaiting approval) gets its
-  // own neutral results screen — see AnonymousResults.
-  if (view === 'results' && result && result.scored === false) {
-    return (
-      <AnonymousResults
-        result={result}
-        authState={result.auth_state ?? 'anonymous'}
-        onSignIn={onSignIn}
-        onNewScan={() => { setResult(null); setView('picker'); }}
-      />
-    );
-  }
-
   if (view === 'results' && result) {
-    const counts = result.products.reduce((acc, p) => {
-      acc[p.scoring] = (acc[p.scoring] ?? 0) + 1; return acc;
-    }, {} as Partial<Record<ScoreEnum, number>>);
+    // An unscored payload (anonymous, or signed in but awaiting approval) renders
+    // the same screen with the scores withheld — see ScanResults.
+    const scored = result.scored !== false;
+    const named = result.products.filter(p => p.scoring !== 'Unidentified').length;
+    const newScan = () => { setResult(null); setSelectedIndex(null); setView('picker'); };
 
     return (
-      <div className={s.resultsPage}>
-        <p className={s.resultsIntro}>Let&apos;s see which products fit your goals! 🎯</p>
-
-        {/* Annotated image */}
-        <div className={s.imageWrap}>
-          <img
-            src={imageUrl} alt="Scanned shelf"
-            className={s.resultImg}
-            onLoad={e => {
-              const el = e.currentTarget;
-              setImgEl({ width: el.offsetWidth, height: el.offsetHeight });
-            }}
-          />
-          {imgEl && finalBoxes(result).map((b, i) => {
-            const [ymin, xmin, ymax, xmax] = b.bbox;
-            return (
-              <button key={i} className={s.bbox} onClick={() => b.product && setSelected(b.product)} style={{
-                top: `${ymin * 100}%`, left: `${xmin * 100}%`,
-                width: `${(xmax - xmin) * 100}%`, height: `${(ymax - ymin) * 100}%`,
-                borderColor: b.color, cursor: b.product ? 'pointer' : 'default',
-              }}>
-                <span className={s.bboxBadge} style={{ background: b.color }}>{b.badge}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Summary bar — chips double as score filters (tap to filter, tap again to clear) */}
-        <div className={s.summaryBar}>
-          {(['Great Fit', 'Just OK Fit', 'Neutral Fit', "Doesn't Fit", 'Unidentified'] as ScoreEnum[]).map(sc =>
-            counts[sc] ? (
-              <button
-                key={sc}
-                className={`${s.chip} ${resFilter === sc ? s.chipActive : ''}`}
-                style={{ borderColor: SCORE_COLORS[sc] }}
-                aria-pressed={resFilter === sc}
-                onClick={() => setResFilter(resFilter === sc ? 'all' : sc)}
-              >
-                <span className={s.chipCount} style={{ color: SCORE_COLORS[sc] }}>{counts[sc]}</span>
-                <span className={s.chipLabel}>{SCORE_LABELS[sc]}</span>
-              </button>
-            ) : null
-          )}
-          <button className={s.newScanBtn} onClick={() => { setResult(null); setView('picker'); }}>New scan</button>
-        </div>
-
-        {/* Collapsible: Scan performance (per-stage timing + counts) */}
-        {result.performance && (
-          <details className={s.drawer}>
-            <summary className={s.drawerSummary}>⏱️ Scan performance</summary>
-            <div className={s.drawerBody}><PerformanceCard perf={result.performance} /></div>
-          </details>
+      <ScanResults
+        scored={scored}
+        result={result}
+        imageUrl={imageUrl}
+        initialProductIndex={selectedIndex}
+        onNewScan={newScan}
+        header={scored ? (
+          <p className={s.resultsIntro}>Let&apos;s see which products fit your goals! 🎯</p>
+        ) : (
+          <div className={a.head}>
+            <h1 className={a.title}>{named} product{named === 1 ? '' : 's'} found</h1>
+            <button className={a.newScan} onClick={newScan}>New scan</button>
+          </div>
         )}
-
-        {/* Collapsible: what each score means */}
-        <details className={s.drawer}>
-          <summary className={s.drawerSummary}>❔ What each score means</summary>
-          <div className={s.drawerBody}><ScoreLegend /></div>
-        </details>
-
-        {/* Sort + filter controls */}
-        <div className={s.controlsRow}>
-          <p className={s.listHeader}>
-            Products{resFilter !== 'all' ? ` · ${SCORE_LABELS[resFilter]}` : ''} — tap for details
-          </p>
-          <div className={s.controlsRight}>
-            {resFilter !== 'all' && (
-              <button className={s.clearFilter} onClick={() => setResFilter('all')}>Clear filter ✕</button>
+        footer={scored ? (
+          <>
+            {result.performance && (
+              <details className={s.drawer}>
+                <summary className={s.drawerSummary}>⏱️ Scan performance</summary>
+                <div className={s.drawerBody}><PerformanceCard perf={result.performance} /></div>
+              </details>
             )}
-            <label className={s.sortLabel}>
-              Sort
-              <select className={s.sortSelect} value={resSort} onChange={e => setResSort(e.target.value as ResultSort)}>
-                {(['best', 'worst', 'az'] as ResultSort[]).map(k => (
-                  <option key={k} value={k}>{SORT_LABELS[k]}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className={s.productList}>
-          {(() => {
-            const shown = result.products
-              .map((p, i) => ({ p, i }))
-              .filter(({ p }) => resFilter === 'all' || p.scoring === resFilter)
-              .sort((a, b) => {
-                if (resSort === 'az') return a.p.product_name.localeCompare(b.p.product_name);
-                const d = SCORE_RANK[b.p.scoring] - SCORE_RANK[a.p.scoring];
-                return resSort === 'best' ? d : -d;
-              });
-            if (shown.length === 0) {
-              return <p className={s.emptyList}>No products match this filter.</p>;
-            }
-            return shown.map(({ p, i }) => <ProductRow key={i} product={p} onPress={() => setSelected(p)} />);
-          })()}
-        </div>
-
-        {/* Detail panel */}
-        {selected && (
-          <div className={s.detailOverlay} onClick={() => setSelected(null)}>
-            <div className={s.detailPanel} onClick={e => e.stopPropagation()}>
-              <DetailPanel product={selected} onClose={() => setSelected(null)} />
-            </div>
-          </div>
+            <details className={s.drawer}>
+              <summary className={s.drawerSummary}>❔ What each score means</summary>
+              <div className={s.drawerBody}><ScoreLegend /></div>
+            </details>
+          </>
+        ) : (
+          <SignInNudge authState={result.auth_state ?? 'anonymous'} onSignIn={onSignIn} />
         )}
-      </div>
+      />
     );
   }
 
@@ -703,281 +578,39 @@ function ScoreLegend() {
   );
 }
 
-function ProductRow({ product, onPress }: { product: ProductItem; onPress: () => void }) {
-  const color = SCORE_COLORS[product.scoring];
-  const bg = SCORE_BG[product.scoring];
-  return (
-    <button className={s.productRow} style={{ borderLeftColor: color }} onClick={onPress}>
-      <div className={s.productTop}>
-        <span className={s.scorePill} style={{ background: bg, borderColor: color, color }}>{SCORE_LABELS[product.scoring]}</span>
-        {product.processing_level != null && (
-          <span className={s.novaTag} style={{ borderColor: NOVA_COLORS[product.processing_level], color: NOVA_COLORS[product.processing_level] }}>
-            NOVA {product.processing_level} · {NOVA_LABELS[product.processing_level]}
-          </span>
-        )}
-      </div>
-      <p className={s.productBrand}>{product.brand}</p>
-      <p className={s.productName}>{product.product_name}</p>
-      <div className={s.factors}>
-        {product.reasoning_by_factor.length > 0
-          ? product.reasoning_by_factor.map((f, i) => <p key={i} className={s.factor}>{f}</p>)
-          : <p className={s.factor}>{product.reasoning}</p>
-        }
-      </div>
-    </button>
-  );
-}
-
-function DetailPanel({ product, onClose }: { product: ProductItem; onClose: () => void }) {
-  const color = SCORE_COLORS[product.scoring];
-  const bg = SCORE_BG[product.scoring];
-  const nf = product.nutritional_facts;
-  return (
-    <div className={s.detail}>
-      <button className={s.detailClose} onClick={onClose}>✕ Close</button>
-      <div className={s.detailBanner} style={{ background: bg, borderColor: color }}>
-        <span className={s.detailScore} style={{ color }}>{SCORE_LABELS[product.scoring]}</span>
-        {product.processing_level != null && (
-          <span className={s.novaTag} style={{ borderColor: NOVA_COLORS[product.processing_level!], color: NOVA_COLORS[product.processing_level!] }}>
-            NOVA {product.processing_level} · {NOVA_LABELS[product.processing_level!]}
-          </span>
-        )}
-        <p className={s.detailReasoning}>{product.reasoning}</p>
-      </div>
-      {product.reasoning_by_factor.length > 0 && (
-        <div className={s.detailFactors}>
-          <p className={s.detailSectionLabel}>Why this score?</p>
-          {product.reasoning_by_factor.map((f, i) => <p key={i} className={s.detailFactor}>{f}</p>)}
-        </div>
-      )}
-      {product.score_breakdown && <ScoreBreakdownCard breakdown={product.score_breakdown} />}
-      <p className={s.detailBrand}>{product.brand}</p>
-      <p className={s.detailName}>{product.product_name}{product.variant ? ` — ${product.variant}` : ''}</p>
-      {product.crop_image && (
-        <div className={s.detailSection}>
-          <p className={s.detailSectionLabel}>Cropped from your photo</p>
-          <img src={product.crop_image} alt={`${product.brand} ${product.product_name} crop`} className={s.cropImage} />
-        </div>
-      )}
-      {nf.detected_ingredients.length > 0 && (
-        <div className={s.detailSection}>
-          <p className={s.detailSectionLabel}>Ingredients</p>
-          <p className={s.detailIngredients}>{nf.detected_ingredients.join(', ')}</p>
-        </div>
-      )}
-      {product.allergens.length > 0 && (
-        <div className={s.detailSection}>
-          <p className={s.detailSectionLabel}>Allergens</p>
-          <p className={s.detailIngredients}>{product.allergens.join(', ')}</p>
-        </div>
-      )}
-      <div className={s.factsTable}>
-        <p className={s.factsTitle}>Nutrition Facts</p>
-        {nf.serving_size && <p className={s.factsServing}>Serving: {nf.serving_size}</p>}
-        <hr className={s.factsDivider} />
-        {nf.calories != null && <div className={s.factsRowBold}><span>Calories</span><span>{nf.calories}</span></div>}
-        <hr className={s.factsDivider} />
-        {[
-          ['Total Fat', nf.total_fat_g, 'g'], ['  Saturated Fat', nf.saturated_fat_g, 'g'], ['  Trans Fat', nf.trans_fat_g, 'g'],
-          ['Cholesterol', nf.cholesterol_mg, 'mg'], ['Sodium', nf.sodium_mg, 'mg'],
-          ['Total Carbohydrate', nf.total_carbohydrate_g, 'g'], ['  Dietary Fiber', nf.dietary_fiber_g, 'g'],
-          ['  Total Sugars', nf.total_sugars_g, 'g'], ['  Added Sugars', nf.added_sugars_g, 'g'],
-          ['Protein', nf.protein_g, 'g'],
-        ].filter(([, v]) => v != null).map(([label, val, unit]) => (
-          <div key={String(label)} className={s.factsRow}>
-            <span>{String(label)}</span><span>{val}{unit}</span>
-          </div>
-        ))}
-        {nf.flagged_ingredients.length > 0 && <>
-          <hr className={s.factsDivider} />
-          <p className={s.flaggedTitle}>⚠️ Flagged Ingredients</p>
-          {nf.flagged_ingredients.map(ing => <p key={ing} className={s.flaggedItem}>· {ing}</p>)}
-        </>}
-      </div>
-      <AlternativesSection product={product} />
-    </div>
-  );
-}
-
-function AlternativesSection({ product }: { product: ProductItem }) {
-  const key = `${product.brand}|${product.product_name}|${product.variant ?? ''}`;
-  // Alternatives only make sense for identified products that aren't already a great fit.
-  const show = product.scoring !== 'Unidentified' && product.scoring !== 'Great Fit';
-  const [state, setState] = useState<{ loading: boolean; alternatives?: Alternative[]; error?: string }>(
-    () => altCache.has(key) ? { loading: false, ...altCache.get(key)! } : { loading: show }
-  );
-
-  useEffect(() => {
-    if (!show || altCache.has(key)) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch('/api/recommender', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product }),
-        });
-        const data = await r.json().catch(() => ({}));
-        const res = r.ok
-          ? { alternatives: (data.alternatives ?? []) as Alternative[] }
-          : { error: data.error ?? `Server ${r.status}`, alternatives: [] as Alternative[] };
-        altCache.set(key, res);
-        if (!cancelled) setState({ loading: false, ...res });
-      } catch (e: any) {
-        const res = { error: e?.message ?? 'Could not load alternatives.', alternatives: [] as Alternative[] };
-        if (!cancelled) setState({ loading: false, ...res });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [key, show, product]);
-
-  if (!show) return null;
-
-  const label = product.scoring === "Doesn't Fit" ? 'Better-fitting alternatives' : 'Alternatives worth considering';
-  return (
-    <div className={s.altSection}>
-      <p className={s.altTitle}>🔄 {label}</p>
-      {state.loading && <p className={s.altLoading}>Finding alternatives tailored to your profile…</p>}
-      {!state.loading && state.error && <p className={s.altError}>Couldn&apos;t load alternatives — {state.error}</p>}
-      {!state.loading && !state.error && (state.alternatives?.length ?? 0) === 0 && (
-        <p className={s.altLoading}>No better alternatives found.</p>
-      )}
-      {(state.alternatives ?? []).map((alt, i) => (
-        <div key={i} className={s.altCard}>
-          <div className={s.altCardTop}>
-            <span className={s.altName}>{alt.brand} — {alt.product_name}</span>
-            {alt.better_because && <span className={s.altBadge}>{alt.better_because}</span>}
-          </div>
-          <p className={s.altReason}>{alt.reason}</p>
-          <div className={s.altMacros}>
-            <span>{alt.macros.calories} cal</span>
-            <span>{alt.macros.protein_g}g protein</span>
-            <span>{alt.macros.fat_g}g fat</span>
-            <span>{alt.macros.carbs_g}g carbs</span>
-            <span>{alt.macros.sugar_g}g sugar</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ScoreBreakdownCard({ breakdown }: { breakdown: NonNullable<ProductItem['score_breakdown']> }) {
-  if (breakdown.hard_exclusion) {
-    return (
-      <div className={s.detailSection}>
-        <p className={s.detailSectionLabel}>Score breakdown</p>
-        <p className={s.flaggedTitle}>⛔ Hard exclusion — scoring stopped at Step 1</p>
-        {breakdown.hard_exclusion_reasons.map((r, i) => <p key={i} className={s.flaggedItem}>· {r}</p>)}
-      </div>
-    );
-  }
-  const dims: [string, number | undefined][] = [
-    ['Dietary philosophy', breakdown.philosophy_score],
-    ['Health goal alignment', breakdown.goal_score],
-    ['Ingredient quality', breakdown.ingredient_score],
-    ['Processing level (NOVA)', breakdown.processing_score],
-    ['Nutrition quality', breakdown.nutrition_score],
-  ];
-  return (
-    <div className={s.detailSection}>
-      <p className={s.detailSectionLabel}>Score breakdown</p>
-      {dims.filter(([, v]) => v != null).map(([label, val]) => (
-        <div key={label} className={s.factsRow}>
-          <span>{label}</span><span>{val! > 0 ? `+${val}` : val}</span>
-        </div>
-      ))}
-      {breakdown.total_score != null && (
-        <div className={s.factsRowBold}>
-          <span>Total score</span><span>{breakdown.total_score}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   Anonymous / pending results.
+   The sign-in nudge under unscored results.
 
-   Deliberately NOT the scored view with the score stripped out: an unscored
-   result must read as informational, never as a judgement. So no traffic-light
-   colours, no accent green on the data itself — just neutral pills, with the one
-   warm --flag-* pair reserved for flagged ingredients.
+   The results themselves are the shared ScanResults screen in its unscored mode;
+   only this closing card is specific to being signed out. Deliberately the one
+   piece of accent green on that screen — an unscored result must read as
+   informational, never as a judgement.
    ───────────────────────────────────────────────────────────────────────────── */
 
-function AnonymousResults({
-  result, authState, onSignIn, onNewScan,
-}: {
-  result: ShelfAnalysisResponse;
-  authState: string;
-  onSignIn: () => void;
-  onNewScan: () => void;
-}) {
-  const named = result.products.filter(p => p.scoring !== 'Unidentified');
+function SignInNudge({ authState, onSignIn }: { authState: string; onSignIn: () => void }) {
   const pending = authState === 'pending';
-
   return (
-    <div className={a.wrap}>
-      <div className={a.head}>
-        <h1 className={a.title}>
-          {named.length} product{named.length === 1 ? '' : 's'} found
-        </h1>
-        <button className={a.newScan} onClick={onNewScan}>New scan</button>
-      </div>
-
-      <ul className={a.list}>
-        {named.map((p, i) => {
-          const n = p.nutritional_facts;
-          const flagged = (n?.flagged_ingredients ?? []).filter(Boolean);
-          return (
-            <li key={`${p.brand}-${p.product_name}-${i}`} className={a.card}>
-              {p.crop_image
-                ? <img className={a.thumb} src={p.crop_image} alt="" />
-                : <span className={a.thumb} aria-hidden="true" />}
-
-              <div className={a.body}>
-                <p className={a.brand}>{p.brand}</p>
-                <p className={a.name}>{p.product_name}</p>
-
-                <div className={a.tags}>
-                  {p.processing_level != null && (
-                    <span className={a.tag}>NOVA {p.processing_level}</span>
-                  )}
-                  {n?.calories != null && <span className={a.tag}>{Math.round(n.calories)} cal</span>}
-                  {n?.sodium_mg != null && <span className={a.tag}>{Math.round(n.sodium_mg)}mg sodium</span>}
-                  {n?.total_sugars_g != null && <span className={a.tag}>{n.total_sugars_g}g sugar</span>}
-                  {flagged.length > 0 && (
-                    <span className={a.flagTag}>⚑ {flagged.slice(0, 2).join(' & ')}</span>
-                  )}
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className={a.nudge}>
-        <span className={a.nudgeTile} aria-hidden="true">
-          <CameraGlyph />
-        </span>
-        {pending ? (
-          <>
-            <p className={a.nudgeTitle}>Your account is awaiting approval</p>
-            <p className={a.nudgeText}>
-              Once an admin approves you, every scan is scored against your allergies,
-              goals and dietary philosophy — no need to sign up again.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className={a.nudgeTitle}>Want to know if these products meet your dietary needs?</p>
-            <p className={a.nudgeText}>
-              Sign in to score every product against your allergies, goals, and dietary philosophy.
-            </p>
-            <button className={a.nudgeBtn} onClick={onSignIn}>Sign In</button>
-          </>
-        )}
-      </div>
+    <div className={a.nudge}>
+      <span className={a.nudgeTile} aria-hidden="true">
+        <CameraGlyph />
+      </span>
+      {pending ? (
+        <>
+          <p className={a.nudgeTitle}>Your account is awaiting approval</p>
+          <p className={a.nudgeText}>
+            Once an admin approves you, every scan is scored against your allergies,
+            goals and dietary philosophy — no need to sign up again.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className={a.nudgeTitle}>Want to know if these products meet your dietary needs?</p>
+          <p className={a.nudgeText}>
+            Sign in to score every product against your allergies, goals, and dietary philosophy.
+          </p>
+          <button className={a.nudgeBtn} onClick={onSignIn}>Sign In</button>
+        </>
+      )}
     </div>
   );
 }

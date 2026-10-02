@@ -22,9 +22,8 @@
   --yellow: oklch(55% 0.14 85);
   --yellow-bg: oklch(55% 0.14 85 / 0.07);
 
-  /* Unscored scan results — see the note in lib/theme.ts. Eggplant and Neon Kale
-     don't define these, so they fall back to these Avocado values rather than
-     breaking; revisit if either theme ever needs its own neutral ramp. */
+  /* Unscored scan results — see the note in lib/theme.ts. All three palettes
+     define their own values for these; these are the pre-JS defaults. */
   --neutral-bg: oklch(95% 0.004 260);
   --neutral-text: oklch(40% 0.01 260);
   --neutral-border: oklch(88% 0.006 260);

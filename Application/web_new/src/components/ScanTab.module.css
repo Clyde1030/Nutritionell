@@ -73,18 +73,6 @@
    at any window/dimension. No object-fit letterboxing, no JS measurement. */
 .imageWrap { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto 4px; overflow: hidden; border-radius: 14px; background: #000; }
 .resultImg { display: block; width: auto; height: auto; max-width: 100%; max-height: 70vh; }
-.bbox { position: absolute; border: 2px solid; border-radius: 4px; background: transparent; }
-.bboxBadge { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 0.5625rem; font-weight: 900; color: #fff; }
-.summaryBar { display: flex; gap: 8px; padding: 12px 0; flex-wrap: wrap; align-items: center; }
-.chip { border: 1.5px solid; border-radius: 10px; padding: 5px 10px; text-align: center; }
-.chipCount { display: block; font-size: 1.125rem; font-weight: 800; }
-.chipLabel { display: block; font-size: 0.5625rem; font-weight: 600; color: var(--sub); }
-.chip { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; background: transparent; }
-.chip:hover { background: var(--surface); }
-.chipActive { background: var(--surface); box-shadow: 0 0 0 1px currentColor inset; }
-.newScanBtn { margin-left: auto; background: var(--surface); border: none; border-radius: 10px; padding: 8px 14px; font-size: 0.75rem; font-weight: 600; color: var(--sub); }
-.newScanBtn:hover { color: var(--text); }
-.listHeader { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--sub); margin-bottom: 8px; }
 
 /* Collapsible drawers (Scan performance / score legend) */
 .drawer { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin: 8px 0; overflow: hidden; }
@@ -101,13 +89,6 @@
 .drawerBody .perfCard, .drawerBody .legendCard { margin: 0; border: none; background: transparent; padding: 0; }
 
 /* Sort/filter controls */
-.controlsRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 16px 0 8px; }
-.controlsRow .listHeader { margin-bottom: 0; }
-.controlsRight { display: flex; align-items: center; gap: 10px; }
-.clearFilter { font-size: 0.6875rem; font-weight: 600; color: var(--accent); background: var(--surface); border-radius: 8px; padding: 5px 9px; }
-.sortLabel { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); }
-.sortSelect { font-family: inherit; font-size: 0.75rem; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; cursor: pointer; }
-.emptyList { font-size: 0.8125rem; color: var(--sub); text-align: center; padding: 20px; }
 
 /* Results intro line */
 .resultsIntro { font-size: 0.9375rem; font-weight: 700; color: var(--text); text-align: center; margin: 4px 0 12px; }
@@ -121,41 +102,14 @@
 .legendDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
 .legendLabel { font-size: 0.8125rem; font-weight: 700; margin-bottom: 2px; }
 .legendDesc { font-size: 0.75rem; color: var(--sub); line-height: 1.5; }
-.productList { display: flex; flex-direction: column; gap: 8px; }
-.productRow { background: var(--card); border-radius: 14px; padding: 14px; border-left: 3px solid; text-align: left; width: 100%; }
-.productRow:hover { background: var(--surface); }
-.productTop { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.scorePill { border: 1px solid; border-radius: 20px; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; }
-.novaTag { border: 1px solid; border-radius: 20px; padding: 3px 8px; font-size: 0.625rem; font-weight: 600; }
-.productBrand { font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); }
-.productName { font-size: 0.9375rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
-.factors { display: flex; flex-direction: column; gap: 2px; }
-.factor { font-size: 0.75rem; color: var(--sub); line-height: 1.5; }
 
 /* Detail overlay */
 .detailOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
 .detailPanel { background: var(--card); border-radius: 20px 20px 0 0; width: 100%; max-width: 720px; max-height: 85vh; overflow-y: auto; }
 .detail { padding: 20px; }
 .detailClose { background: var(--surface); border: none; border-radius: 20px; padding: 6px 14px; font-size: 0.8125rem; color: var(--sub); margin-bottom: 16px; }
-.detailBanner { border: 1.5px solid; border-radius: 12px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
-.detailScore { font-size: 1.125rem; font-weight: 800; }
-.detailReasoning { font-size: 0.8125rem; color: var(--sub); line-height: 1.6; }
-.detailFactors { background: var(--surface); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
 .detailSectionLabel { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sub); margin-bottom: 8px; }
 .detailFactor { font-size: 0.75rem; color: var(--sub); line-height: 1.8; }
-.detailBrand { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; color: var(--sub); }
-.detailName { font-size: 1.375rem; font-weight: 700; margin-top: 2px; margin-bottom: 12px; color: var(--text); }
-.detailSection { margin-bottom: 12px; }
-.detailIngredients { font-size: 0.75rem; color: var(--sub); line-height: 1.6; }
-.cropImage { display: block; max-width: 160px; max-height: 160px; border-radius: 10px; border: 1px solid var(--border); object-fit: cover; }
-.factsTable { background: var(--surface); border-radius: 12px; padding: 16px; }
-.factsTitle { font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
-.factsServing { font-size: 0.75rem; color: var(--sub); margin-bottom: 8px; }
-.factsDivider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
-.factsRow { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--sub); padding: 3px 0; }
-.factsRowBold { display: flex; justify-content: space-between; font-size: 1rem; font-weight: 700; padding: 3px 0; }
-.flaggedTitle { font-size: 0.75rem; font-weight: 700; color: var(--yellow); margin-bottom: 4px; }
-.flaggedItem { font-size: 0.75rem; color: var(--red); line-height: 1.8; padding-left: 4px; }
 
 @media (min-width: 600px) {
   .detailOverlay { align-items: center; }
@@ -225,13 +179,3 @@
 .perfRowBold { display: flex; justify-content: space-between; font-size: 0.875rem; font-weight: 800; color: var(--text); padding: 6px 0 2px; border-top: 1px solid var(--border); margin-top: 4px; }
 
 /* ── Per-product alternatives (detail panel) ────────────────────────────── */
-.altSection { margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
-.altTitle { font-size: 0.8125rem; font-weight: 800; color: var(--text); margin-bottom: 10px; }
-.altLoading { font-size: 0.75rem; color: var(--sub); }
-.altError { font-size: 0.75rem; color: var(--red); line-height: 1.5; }
-.altCard { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
-.altCardTop { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
-.altName { font-size: 0.8125rem; font-weight: 700; color: var(--text); }
-.altBadge { font-size: 0.625rem; font-weight: 700; color: var(--green); background: rgba(34,197,94,0.12); padding: 2px 8px; border-radius: 12px; white-space: nowrap; flex-shrink: 0; }
-.altReason { font-size: 0.75rem; color: var(--sub); line-height: 1.5; margin-bottom: 6px; }
-.altMacros { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.6875rem; color: var(--sub); }
